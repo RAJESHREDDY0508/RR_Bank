@@ -76,10 +76,11 @@ public class SecurityConfig {
                         // H2 Console - Only for development
                         .requestMatchers("/h2-console/**").permitAll()
                         
-                        // Protected endpoints
-                        .requestMatchers("/api/accounts/**").hasRole("CUSTOMER")
-                        .requestMatchers("/api/transactions/**").hasRole("CUSTOMER")
-                        .requestMatchers("/api/transfers/**").hasRole("CUSTOMER")
+                        // Protected endpoints - Allow both CUSTOMER and ADMIN
+                        .requestMatchers("/api/accounts/**").hasAnyRole("CUSTOMER", "ADMIN")
+                        .requestMatchers("/api/transactions/**").hasAnyRole("CUSTOMER", "ADMIN")
+                        .requestMatchers("/api/transfers/**").hasAnyRole("CUSTOMER", "ADMIN")
+                        .requestMatchers("/api/customers/**").hasAnyRole("CUSTOMER", "ADMIN")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         
                         // All other requests require authentication

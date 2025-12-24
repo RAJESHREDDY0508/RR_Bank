@@ -1,5 +1,6 @@
 package com.RRBank.banking.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -13,6 +14,11 @@ import java.util.UUID;
 /**
  * Transfer Request DTO
  * Used for internal money transfers between accounts
+ * 
+ * Supports:
+ * - TRANSFER: Both fromAccountId and toAccountId required
+ * - DEPOSIT: Only toAccountId required (fromAccountId = null)
+ * - WITHDRAWAL: Only fromAccountId required (toAccountId = null)
  */
 @Data
 @NoArgsConstructor
@@ -20,10 +26,16 @@ import java.util.UUID;
 @Builder
 public class TransferRequestDto {
 
-    @NotNull(message = "From account ID is required")
+    /**
+     * Source account ID (nullable for deposits)
+     */
+    @JsonProperty("fromAccountId")
     private UUID fromAccountId;
 
-    @NotNull(message = "To account ID is required")
+    /**
+     * Destination account ID (nullable for withdrawals)
+     */
+    @JsonProperty("toAccountId")
     private UUID toAccountId;
 
     @NotNull(message = "Amount is required")
@@ -33,4 +45,10 @@ public class TransferRequestDto {
     private String description;
 
     private String idempotencyKey; // For preventing duplicate transactions
+    
+    /**
+     * Transaction type hint (optional - auto-detected if not provided)
+     * Values: TRANSFER, DEPOSIT, WITHDRAWAL
+     */
+    private String transactionType;
 }

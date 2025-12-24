@@ -66,14 +66,14 @@ public class AccountService {
         BigDecimal overdraftLimit = dto.getOverdraftLimit() != null ? dto.getOverdraftLimit() : BigDecimal.ZERO;
         BigDecimal interestRate = dto.getInterestRate() != null ? dto.getInterestRate() : BigDecimal.ZERO;
 
-        // Create account entity
+        // Create account entity with PENDING status (requires admin approval)
         Account account = Account.builder()
                 .accountNumber(accountNumber)
                 .customerId(dto.getCustomerId())
                 .accountType(accountType)
                 .balance(dto.getInitialBalance())
                 .currency(currency)
-                .status(Account.AccountStatus.ACTIVE)
+                .status(Account.AccountStatus.PENDING) // Requires admin approval
                 .overdraftLimit(overdraftLimit)
                 .interestRate(interestRate)
                 .build();

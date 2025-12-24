@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.core.JsonParseException;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -302,6 +305,71 @@ public class GlobalExceptionHandler {
     }
 
     // ==================== BAD REQUEST EXCEPTIONS (400) ====================
+
+    /**
+     * Handle malformed JSON / JSON parsing errors.
+     * Returns HTTP 400 BAD REQUEST.
+     * 
+     * Common causes:
+     * - Invalid JSON syntax
+     * - Type mismatch (e.g., String instead of Object)
+     * - Missing required fields
+     * - Invalid date format
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(
+            HttpMessageNotReadableException ex,
+            HttpServletRequest request) {
+        
+        String message = "Invalid JSON request body";
+        List<String> details = new ArrayList<>();
+        
+        Throwable cause = ex.getCause();
+        if (cause instanceof JsonParseException) {
+            message = "Malformed JSON syntax";
+            details.add("Check for missing commas, brackets, or quotes");
+        } else if (cause instanceof JsonMappingException jsonEx) {
+            message = "JSON type mismatch or invalid value";
+            // Extract field path from JsonMappingException
+            StringBuilder fieldPath = new StringBuilder();
+            for (JsonMappingException.Reference ref : jsonEx.getPath()) {
+                if (fieldPath.length() > 0) fieldPath.append(".");
+                if (ref.getFieldName() != null) {
+                    fieldPath.append(ref.getFieldName());
+                } else {
+                    fieldPath.append("[").append(ref.getIndex()).append("]");
+                }
+            }
+            if (fieldPath.length() > 0) {
+                details.add("Field: " + fieldPath);
+            }
+            // Add original message for context
+            String originalMessage = jsonEx.getOriginalMessage();
+            if (originalMessage != null && !originalMessage.isEmpty()) {
+                details.add(originalMessage);
+            }
+        } else if (ex.getMessage() != null) {
+            // Generic message extraction
+            if (ex.getMessage().contains("Required request body is missing")) {
+                message = "Request body is required";
+            } else if (ex.getMessage().contains("Cannot deserialize")) {
+                message = "Invalid data type in request";
+                details.add("Check that all fields have correct types (e.g., dates as \"yyyy-MM-dd\")");
+            }
+        }
+        
+        ErrorResponse error = new ErrorResponse(
+                HttpStatus.BAD_REQUEST.value(),
+                "INVALID_JSON",
+                message,
+                details.isEmpty() ? null : details,
+                request.getRequestURI()
+        );
+        
+        log.warn("JSON parsing error at {}: {}", request.getRequestURI(), ex.getMessage());
+        
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
 
     /**
      * Handle validation errors (e.g., @Valid annotation failures).

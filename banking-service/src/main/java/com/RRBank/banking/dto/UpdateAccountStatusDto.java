@@ -1,6 +1,8 @@
 package com.RRBank.banking.dto;
 
-import jakarta.validation.constraints.NotNull;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -8,6 +10,14 @@ import lombok.NoArgsConstructor;
 
 /**
  * Update Account Status DTO
+ * 
+ * Example JSON:
+ * {
+ *   "status": "ACTIVE",
+ *   "reason": "Account verified and approved"
+ * }
+ * 
+ * Valid statuses: ACTIVE, FROZEN, CLOSED, SUSPENDED, PENDING
  */
 @Data
 @NoArgsConstructor
@@ -15,8 +25,12 @@ import lombok.NoArgsConstructor;
 @Builder
 public class UpdateAccountStatusDto {
 
-    @NotNull(message = "Status is required")
-    private String status; // ACTIVE, FROZEN, CLOSED, SUSPENDED
+    @NotBlank(message = "Status is required")
+    @Pattern(regexp = "^(ACTIVE|FROZEN|CLOSED|SUSPENDED|PENDING)$", 
+             message = "Status must be one of: ACTIVE, FROZEN, CLOSED, SUSPENDED, PENDING")
+    @JsonProperty("status")
+    private String status;
 
+    @JsonProperty("reason")
     private String reason; // Reason for status change
 }

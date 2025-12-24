@@ -54,12 +54,17 @@ public class TransactionService {
      * Transfer money between accounts (Saga Pattern) This implements a
      * distributed transaction pattern with compensating actions
      *
+     * Supports:
+     * - TRANSFER: Both fromAccountId and toAccountId required
+     * - DEPOSIT: Only toAccountId required (fromAccountId = null)
+     * - WITHDRAWAL: Only fromAccountId required (toAccountId = null)
+     *
      * ✅ FIX: Uses pessimistic locking instead of SERIALIZABLE isolation for
      * better performance
      */
     @Transactional
     public TransactionResponseDto transfer(TransferRequestDto request, UUID initiatedBy) {
-        log.info("Initiating transfer from {} to {} amount: {}",
+        log.info("Initiating transaction from {} to {} amount: {}",
                 request.getFromAccountId(), request.getToAccountId(), request.getAmount());
 
         // Step 1: Check for duplicate transaction (Idempotency)
@@ -74,19 +79,27 @@ public class TransactionService {
             }
         }
 
-        // Step 2: Validate accounts exist and are different
-        if (request.getFromAccountId().equals(request.getToAccountId())) {
-            throw new IllegalArgumentException("Cannot transfer to the same account");
+        // Step 2: Determine transaction type and validate
+        Transaction.TransactionType transactionType = determineTransactionType(request);
+        
+        // For transfers, validate accounts are different
+        if (transactionType == Transaction.TransactionType.TRANSFER) {
+            if (request.getFromAccountId() == null || request.getToAccountId() == null) {
+                throw new IllegalArgumentException("Transfer requires both fromAccountId and toAccountId");
+            }
+            if (request.getFromAccountId().equals(request.getToAccountId())) {
+                throw new IllegalArgumentException("Cannot transfer to the same account");
+            }
         }
 
         // Step 3: Create transaction record (PENDING state)
-        String transactionRef = referenceGenerator.generateTransactionReferenceWithType("TRANSFER");
+        String transactionRef = referenceGenerator.generateTransactionReferenceWithType(transactionType.name());
 
         Transaction transaction = Transaction.builder()
                 .transactionReference(transactionRef)
                 .fromAccountId(request.getFromAccountId())
                 .toAccountId(request.getToAccountId())
-                .transactionType(Transaction.TransactionType.TRANSFER)
+                .transactionType(transactionType)
                 .amount(request.getAmount())
                 .currency("USD")
                 .status(Transaction.TransactionStatus.PENDING)
@@ -134,15 +147,111 @@ public class TransactionService {
     }
 
     /**
+     * Determine transaction type based on request
+     */
+    private Transaction.TransactionType determineTransactionType(TransferRequestDto request) {
+        // If explicitly specified in request, use that
+        if (request.getTransactionType() != null) {
+            try {
+                return Transaction.TransactionType.valueOf(request.getTransactionType().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid transaction type: {}, auto-detecting", request.getTransactionType());
+            }
+        }
+        
+        // Auto-detect based on account IDs
+        if (request.getFromAccountId() == null && request.getToAccountId() != null) {
+            return Transaction.TransactionType.DEPOSIT;
+        } else if (request.getFromAccountId() != null && request.getToAccountId() == null) {
+            return Transaction.TransactionType.WITHDRAWAL;
+        } else {
+            return Transaction.TransactionType.TRANSFER;
+        }
+    }
+
+    /**
      * Execute Saga Transfer (Main Transaction Flow)
+     * Supports TRANSFER, DEPOSIT, and WITHDRAWAL
      */
     private void executeSagaTransfer(Transaction transaction, BigDecimal amount) {
-        log.info("Executing saga transfer for transaction: {}", transaction.getId());
+        log.info("Executing saga {} for transaction: {}", 
+                transaction.getTransactionType(), transaction.getId());
 
         // Update transaction status to PROCESSING
         transaction.setStatus(Transaction.TransactionStatus.PROCESSING);
         transactionRepository.save(transaction);
 
+        switch (transaction.getTransactionType()) {
+            case DEPOSIT -> executeDeposit(transaction, amount);
+            case WITHDRAWAL -> executeWithdrawal(transaction, amount);
+            case TRANSFER -> executeTransfer(transaction, amount);
+            default -> throw new IllegalStateException(
+                    "Unsupported transaction type: " + transaction.getTransactionType());
+        }
+    }
+
+    /**
+     * Execute deposit (credit to account)
+     */
+    private void executeDeposit(Transaction transaction, BigDecimal amount) {
+        Account toAccount = accountRepository.findByIdWithLock(transaction.getToAccountId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "To account not found: " + transaction.getToAccountId()));
+
+        if (!toAccount.isActive()) {
+            throw new IllegalStateException("To account is not active");
+        }
+
+        BigDecimal toAccountOldBalance = toAccount.getBalance();
+        toAccount.credit(amount);
+        
+        // Update balance tracking on transaction
+        transaction.setBalanceBefore(toAccountOldBalance);
+        transaction.setBalanceAfter(toAccount.getBalance());
+        transaction.setToAccountNumber(toAccount.getAccountNumber());
+        
+        accountRepository.save(toAccount);
+        log.info("Deposited {} to account {}", amount, toAccount.getId());
+
+        cacheService.updateCachedBalance(toAccount.getId(), toAccount.getBalance());
+        publishBalanceUpdatedEvent(toAccount, toAccountOldBalance, "CREDIT", transaction.getId().toString());
+    }
+
+    /**
+     * Execute withdrawal (debit from account)
+     */
+    private void executeWithdrawal(Transaction transaction, BigDecimal amount) {
+        Account fromAccount = accountRepository.findByIdWithLock(transaction.getFromAccountId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "From account not found: " + transaction.getFromAccountId()));
+
+        if (!fromAccount.isActive()) {
+            throw new IllegalStateException("From account is not active");
+        }
+
+        if (!fromAccount.hasSufficientBalance(amount)) {
+            throw new IllegalStateException("Insufficient balance in account");
+        }
+
+        BigDecimal fromAccountOldBalance = fromAccount.getBalance();
+        fromAccount.debit(amount);
+        
+        // Update balance tracking on transaction
+        transaction.setBalanceBefore(fromAccountOldBalance);
+        transaction.setBalanceAfter(fromAccount.getBalance());
+        transaction.setFromAccountNumber(fromAccount.getAccountNumber());
+        
+        accountRepository.save(fromAccount);
+        log.info("Withdrew {} from account {}", amount, fromAccount.getId());
+
+        cacheService.updateCachedBalance(fromAccount.getId(), fromAccount.getBalance());
+        publishBalanceUpdatedEvent(fromAccount, fromAccountOldBalance, "DEBIT", transaction.getId().toString());
+    }
+
+    /**
+     * Execute transfer (debit from source, credit to destination)
+     */
+    private void executeTransfer(Transaction transaction, BigDecimal amount) {
         // Step 1: Lock and validate FROM account
         Account fromAccount = accountRepository.findByIdWithLock(transaction.getFromAccountId())
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -174,6 +283,11 @@ public class TransactionService {
         // Step 6: Debit from source account
         BigDecimal fromAccountOldBalance = fromAccount.getBalance();
         fromAccount.debit(amount);
+        
+        // Update account numbers on transaction
+        transaction.setFromAccountNumber(fromAccount.getAccountNumber());
+        transaction.setToAccountNumber(toAccount.getAccountNumber());
+        
         accountRepository.save(fromAccount);
         log.info("Debited {} from account {}", amount, fromAccount.getId());
 
@@ -198,35 +312,68 @@ public class TransactionService {
 
     /**
      * Compensating Transaction (Rollback on Failure)
+     * Handles compensation for TRANSFER, DEPOSIT, and WITHDRAWAL
      */
     private void compensateTransaction(Transaction transaction, String reason) {
-        log.warn("Executing compensating transaction for: {}, reason: {}", transaction.getId(), reason);
+        log.warn("Executing compensating transaction for: {}, type: {}, reason: {}", 
+                transaction.getId(), transaction.getTransactionType(), reason);
 
         try {
-            // If we've debited the from account but failed to credit the to account,
-            // we need to refund the from account
-
-            Account fromAccount = accountRepository.findByIdWithLock(transaction.getFromAccountId())
-                    .orElse(null);
-
-            if (fromAccount != null) {
-                // Check if debit was actually performed (balance changed)
-                // In a real system, you'd have transaction logs to verify this
-
-                // Refund the amount
-                BigDecimal oldBalance = fromAccount.getBalance();
-                fromAccount.credit(transaction.getAmount());
-                accountRepository.save(fromAccount);
-
-                log.info("Compensating transaction: refunded {} to account {}",
-                        transaction.getAmount(), fromAccount.getId());
-
-                // Update cache
-                cacheService.updateCachedBalance(fromAccount.getId(), fromAccount.getBalance());
-
-                // Publish balance updated event
-                publishBalanceUpdatedEvent(fromAccount, oldBalance, "CREDIT",
-                        transaction.getId().toString() + "-COMPENSATION");
+            switch (transaction.getTransactionType()) {
+                case DEPOSIT -> {
+                    // For deposits, if we credited, we need to debit back
+                    if (transaction.getToAccountId() != null) {
+                        Account toAccount = accountRepository.findByIdWithLock(transaction.getToAccountId())
+                                .orElse(null);
+                        if (toAccount != null && transaction.getStatus() == Transaction.TransactionStatus.PROCESSING) {
+                            BigDecimal oldBalance = toAccount.getBalance();
+                            toAccount.debit(transaction.getAmount());
+                            accountRepository.save(toAccount);
+                            cacheService.updateCachedBalance(toAccount.getId(), toAccount.getBalance());
+                            publishBalanceUpdatedEvent(toAccount, oldBalance, "DEBIT",
+                                    transaction.getId().toString() + "-COMPENSATION");
+                            log.info("Compensated deposit: debited {} from account {}",
+                                    transaction.getAmount(), toAccount.getId());
+                        }
+                    }
+                }
+                case WITHDRAWAL -> {
+                    // For withdrawals, if we debited, we need to credit back
+                    if (transaction.getFromAccountId() != null) {
+                        Account fromAccount = accountRepository.findByIdWithLock(transaction.getFromAccountId())
+                                .orElse(null);
+                        if (fromAccount != null) {
+                            BigDecimal oldBalance = fromAccount.getBalance();
+                            fromAccount.credit(transaction.getAmount());
+                            accountRepository.save(fromAccount);
+                            cacheService.updateCachedBalance(fromAccount.getId(), fromAccount.getBalance());
+                            publishBalanceUpdatedEvent(fromAccount, oldBalance, "CREDIT",
+                                    transaction.getId().toString() + "-COMPENSATION");
+                            log.info("Compensated withdrawal: credited {} to account {}",
+                                    transaction.getAmount(), fromAccount.getId());
+                        }
+                    }
+                }
+                case TRANSFER -> {
+                    // For transfers, if we've debited the from account but failed to credit the to account,
+                    // we need to refund the from account
+                    if (transaction.getFromAccountId() != null) {
+                        Account fromAccount = accountRepository.findByIdWithLock(transaction.getFromAccountId())
+                                .orElse(null);
+                        if (fromAccount != null) {
+                            BigDecimal oldBalance = fromAccount.getBalance();
+                            fromAccount.credit(transaction.getAmount());
+                            accountRepository.save(fromAccount);
+                            cacheService.updateCachedBalance(fromAccount.getId(), fromAccount.getBalance());
+                            publishBalanceUpdatedEvent(fromAccount, oldBalance, "CREDIT",
+                                    transaction.getId().toString() + "-COMPENSATION");
+                            log.info("Compensated transfer: refunded {} to account {}",
+                                    transaction.getAmount(), fromAccount.getId());
+                        }
+                    }
+                }
+                default -> log.warn("No compensation logic for transaction type: {}", 
+                        transaction.getTransactionType());
             }
 
             // Mark transaction as reversed

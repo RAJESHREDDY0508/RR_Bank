@@ -188,6 +188,7 @@ public class Account {
      * Account Status Enum
      */
     public enum AccountStatus {
+        PENDING,      // Account awaiting admin approval
         ACTIVE,       // Account is active and operational
         FROZEN,       // Account is frozen (no transactions allowed)
         CLOSED,       // Account is closed permanently
