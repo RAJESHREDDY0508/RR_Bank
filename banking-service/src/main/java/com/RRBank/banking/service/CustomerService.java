@@ -7,6 +7,7 @@ import com.RRBank.banking.event.CustomerUpdatedEvent;
 import com.RRBank.banking.event.KycVerifiedEvent;
 import com.RRBank.banking.exception.ResourceNotFoundException;
 import com.RRBank.banking.repository.CustomerRepository;
+import com.RRBank.banking.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -28,13 +29,34 @@ import java.util.stream.Collectors;
 public class CustomerService {
 
     private final CustomerRepository customerRepository;
+    private final UserRepository userRepository;
     
     @Autowired(required = false)
     private CustomerEventProducer eventProducer;
     
     @Autowired
-    public CustomerService(CustomerRepository customerRepository) {
+    public CustomerService(CustomerRepository customerRepository, UserRepository userRepository) {
         this.customerRepository = customerRepository;
+        this.userRepository = userRepository;
+    }
+
+    /**
+     * Get user ID by username
+     * Used to extract userId from JWT token authentication
+     */
+    @Transactional(readOnly = true)
+    public UUID getUserIdByUsername(String username) {
+        log.debug("Looking up userId for username: {}", username);
+        return userRepository.findByUsername(username)
+                .map(user -> {
+                    try {
+                        return UUID.fromString(user.getUserId());
+                    } catch (IllegalArgumentException e) {
+                        log.error("Invalid UUID format for userId: {}", user.getUserId());
+                        return null;
+                    }
+                })
+                .orElse(null);
     }
 
     /**
@@ -43,6 +65,11 @@ public class CustomerService {
     @Transactional
     public CustomerResponseDto createCustomer(CreateCustomerDto dto) {
         log.info("Creating customer for userId: {}", dto.getUserId());
+        
+        // Validate userId is provided
+        if (dto.getUserId() == null) {
+            throw new IllegalArgumentException("User ID is required. Please login first.");
+        }
 
         // Check if customer already exists for this user
         if (customerRepository.existsByUserId(dto.getUserId())) {

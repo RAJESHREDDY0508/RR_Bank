@@ -2,6 +2,8 @@ package com.RRBank.banking.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.datatype.jsr310.deser.LocalDateDeserializer;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Past;
@@ -23,7 +25,7 @@ import java.util.UUID;
  *   "userId": "550e8400-e29b-41d4-a716-446655440000",
  *   "firstName": "Raj",
  *   "lastName": "Kumar",
- *   "dateOfBirth": "1995-01-01",
+ *   "dateOfBirth": "1995-01-15",
  *   "phone": "+1234567890",
  *   "address": "123 Main Street",
  *   "city": "New Jersey",
@@ -31,6 +33,8 @@ import java.util.UUID;
  *   "zipCode": "07001",
  *   "country": "USA"
  * }
+ * 
+ * Supported date formats: yyyy-MM-dd, MM-dd-yyyy, dd-MM-yyyy
  */
 @Data
 @NoArgsConstructor
@@ -38,7 +42,10 @@ import java.util.UUID;
 @Builder
 public class CreateCustomerDto {
 
-    @NotNull(message = "User ID is required")
+    /**
+     * User ID - Optional if authenticated via JWT (will be auto-populated)
+     * Required if not authenticated
+     */
     @JsonProperty("userId")
     private UUID userId;
 
@@ -52,8 +59,8 @@ public class CreateCustomerDto {
 
     @NotNull(message = "Date of birth is required")
     @Past(message = "Date of birth must be in the past")
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
     @JsonProperty("dateOfBirth")
+    @JsonDeserialize(using = FlexibleLocalDateDeserializer.class)
     private LocalDate dateOfBirth;
 
     @NotBlank(message = "Phone number is required")

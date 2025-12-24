@@ -29,6 +29,7 @@ public class Account {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
     @Column(name = "account_number", nullable = false, unique = true, length = 20)
@@ -38,20 +39,23 @@ public class Account {
     private UUID customerId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "user_id", insertable = false, updatable = false)
     private User user;
+    
+    @Column(name = "user_id")
+    private String userId;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "account_type", nullable = false, length = 20)
     private AccountType accountType;
 
-    @Column(name = "balance", nullable = false, precision = 15, scale = 2)
+    @Column(name = "balance", nullable = false, precision = 19, scale = 4)
     private BigDecimal balance;
 
-    @Column(name = "available_balance", precision = 15, scale = 2)
+    @Column(name = "available_balance", precision = 19, scale = 4)
     private BigDecimal availableBalance;
 
-    @Column(name = "minimum_balance", precision = 15, scale = 2)
+    @Column(name = "minimum_balance", precision = 19, scale = 4)
     private BigDecimal minimumBalance;
 
     @Column(name = "currency", nullable = false, length = 3)
@@ -61,13 +65,13 @@ public class Account {
     @Column(name = "status", nullable = false, length = 20)
     private AccountStatus status;
 
-    @Column(name = "overdraft_limit", precision = 15, scale = 2)
+    @Column(name = "overdraft_limit", precision = 19, scale = 4)
     private BigDecimal overdraftLimit;
 
-    @Column(name = "interest_rate", precision = 5, scale = 2)
+    @Column(name = "interest_rate", precision = 5, scale = 4)
     private BigDecimal interestRate;
 
-    @Column(name = "opened_at", nullable = false)
+    @Column(name = "opened_at")
     private LocalDateTime openedAt;
 
     @Column(name = "closed_at")
@@ -81,6 +85,10 @@ public class Account {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+    
+    @Version
+    @Column(name = "version")
+    private Long version;
 
     @PrePersist
     protected void onCreate() {
@@ -101,7 +109,7 @@ public class Account {
             currency = "USD";
         }
         if (status == null) {
-            status = AccountStatus.ACTIVE;
+            status = AccountStatus.PENDING;
         }
         if (overdraftLimit == null) {
             overdraftLimit = BigDecimal.ZERO;

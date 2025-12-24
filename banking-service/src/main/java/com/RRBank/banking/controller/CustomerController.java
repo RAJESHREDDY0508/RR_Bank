@@ -9,6 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -30,10 +32,24 @@ public class CustomerController {
     /**
      * Create new customer profile
      * POST /api/customers
+     * 
+     * Note: If userId is not provided in the request, it will be extracted from the JWT token
      */
     @PostMapping
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
-    public ResponseEntity<CustomerResponseDto> createCustomer(@Valid @RequestBody CreateCustomerDto dto) {
+    public ResponseEntity<CustomerResponseDto> createCustomer(
+            @Valid @RequestBody CreateCustomerDto dto,
+            Authentication authentication) {
+        
+        // If userId is not provided, extract from authenticated user
+        if (dto.getUserId() == null && authentication != null) {
+            UUID extractedUserId = extractUserIdFromAuthentication(authentication);
+            if (extractedUserId != null) {
+                dto.setUserId(extractedUserId);
+                log.info("UserId extracted from JWT token: {}", extractedUserId);
+            }
+        }
+        
         log.info("REST request to create customer for userId: {}", dto.getUserId());
         CustomerResponseDto response = customerService.createCustomer(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -175,5 +191,43 @@ public class CustomerController {
         // Delegate to Account Service
         List<AccountResponseDto> accounts = accountService.getAccountsByCustomerId(id);
         return ResponseEntity.ok(accounts);
+    }
+
+    // ========== HELPER METHODS ==========
+
+    /**
+     * Extract user ID from authentication object
+     * Works with JWT tokens where the subject is the userId
+     */
+    private UUID extractUserIdFromAuthentication(Authentication authentication) {
+        if (authentication == null) {
+            return null;
+        }
+        
+        Object principal = authentication.getPrincipal();
+        
+        // If principal is UserDetails, get the username (which should be the userId)
+        if (principal instanceof UserDetails userDetails) {
+            String username = userDetails.getUsername();
+            // Try to parse as UUID first
+            try {
+                return UUID.fromString(username);
+            } catch (IllegalArgumentException e) {
+                // Username is not a UUID, need to look up by username
+                log.debug("Username '{}' is not a UUID, will lookup user", username);
+                return customerService.getUserIdByUsername(username);
+            }
+        }
+        
+        // If principal is a String (username)
+        if (principal instanceof String username) {
+            try {
+                return UUID.fromString(username);
+            } catch (IllegalArgumentException e) {
+                return customerService.getUserIdByUsername(username);
+            }
+        }
+        
+        return null;
     }
 }

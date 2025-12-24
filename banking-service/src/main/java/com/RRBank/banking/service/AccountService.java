@@ -7,9 +7,13 @@ import com.RRBank.banking.event.AccountStatusChangedEvent;
 import com.RRBank.banking.event.BalanceUpdatedEvent;
 import com.RRBank.banking.exception.ResourceNotFoundException;
 import com.RRBank.banking.repository.AccountRepository;
+import com.RRBank.banking.security.CustomUserDetails;
 import com.RRBank.banking.util.AccountNumberGenerator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +26,8 @@ import java.util.stream.Collectors;
 /**
  * Account Service
  * Business logic for account management
+ * 
+ * SECURITY: Every account MUST be owned by the authenticated user
  */
 @Service
 @Slf4j
@@ -43,12 +49,100 @@ public class AccountService {
         this.accountNumberGenerator = accountNumberGenerator;
     }
 
+    // ========== AUTHENTICATION HELPER METHODS ==========
+
+    /**
+     * Get authenticated user ID - BULLETPROOF implementation
+     * 
+     * @return The authenticated user's ID
+     * @throws IllegalStateException if user is not authenticated or userId cannot be extracted
+     */
+    private String getAuthenticatedUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        // Check 1: Authentication must exist
+        if (auth == null) {
+            log.error("No authentication found in SecurityContext");
+            throw new IllegalStateException("User must be authenticated to perform this action");
+        }
+
+        // Check 2: User must be authenticated
+        if (!auth.isAuthenticated()) {
+            log.error("User is not authenticated");
+            throw new IllegalStateException("User must be authenticated to perform this action");
+        }
+
+        Object principal = auth.getPrincipal();
+
+        // Check 3: Principal must not be null
+        if (principal == null) {
+            log.error("Authentication principal is null");
+            throw new IllegalStateException("Invalid authentication state");
+        }
+
+        // Check 4: Handle CustomUserDetails (our implementation)
+        if (principal instanceof CustomUserDetails userDetails) {
+            String userId = userDetails.getUserId();
+            if (userId == null || userId.isBlank()) {
+                log.error("CustomUserDetails has null/empty userId");
+                throw new IllegalStateException("User ID is missing from authentication");
+            }
+            log.debug("Extracted userId from CustomUserDetails: {}", userId);
+            return userId;
+        }
+
+        // Check 5: Handle standard Spring Security UserDetails (fallback)
+        if (principal instanceof UserDetails userDetails) {
+            // Username might be the userId in some configurations
+            String username = userDetails.getUsername();
+            log.warn("Using standard UserDetails, username as userId fallback: {}", username);
+            if (username == null || username.isBlank()) {
+                throw new IllegalStateException("Username is missing from authentication");
+            }
+            return username;
+        }
+
+        // Check 6: Handle String principal (e.g., from JWT subject)
+        if (principal instanceof String stringPrincipal) {
+            if (stringPrincipal.isBlank()) {
+                throw new IllegalStateException("Authentication principal is empty");
+            }
+            log.debug("Using String principal as userId: {}", stringPrincipal);
+            return stringPrincipal;
+        }
+
+        // Final fallback: Unknown principal type
+        log.error("Unknown principal type: {}", principal.getClass().getName());
+        throw new IllegalStateException("Unable to extract user ID from authentication");
+    }
+
+    /**
+     * Validate that userId is not null before saving
+     * 
+     * @param account The account to validate
+     * @throws IllegalStateException if userId is missing
+     */
+    private void validateAccountOwnership(Account account) {
+        if (account.getUserId() == null || account.getUserId().isBlank()) {
+            log.error("Account validation failed: userId is null or empty");
+            throw new IllegalStateException("Account must be linked to a user. userId cannot be null.");
+        }
+    }
+
+    // ========== ACCOUNT OPERATIONS ==========
+
     /**
      * Create new bank account
+     * 
+     * SECURITY: Account is automatically linked to the authenticated user
      */
     @Transactional
     public AccountResponseDto createAccount(CreateAccountDto dto) {
         log.info("Creating account for customerId: {}, type: {}", dto.getCustomerId(), dto.getAccountType());
+
+        // ✅ CRITICAL: Get authenticated user ID
+        String userId = getAuthenticatedUserId();
+        log.info("Account will be owned by userId: {}", userId);
 
         // Validate account type
         Account.AccountType accountType;
@@ -67,19 +161,25 @@ public class AccountService {
         BigDecimal interestRate = dto.getInterestRate() != null ? dto.getInterestRate() : BigDecimal.ZERO;
 
         // Create account entity with PENDING status (requires admin approval)
+        // ✅ CRITICAL FIX: Set userId from authenticated user
         Account account = Account.builder()
                 .accountNumber(accountNumber)
                 .customerId(dto.getCustomerId())
+                .userId(userId)  // ✅ THIS WAS MISSING - NOW FIXED
                 .accountType(accountType)
                 .balance(dto.getInitialBalance())
                 .currency(currency)
-                .status(Account.AccountStatus.PENDING) // Requires admin approval
+                .status(Account.AccountStatus.PENDING)
                 .overdraftLimit(overdraftLimit)
                 .interestRate(interestRate)
                 .build();
 
+        // ✅ DEFENSIVE VALIDATION: Ensure userId is set before saving
+        validateAccountOwnership(account);
+
         account = accountRepository.save(account);
-        log.info("Account created with ID: {}, accountNumber: {}", account.getId(), account.getAccountNumber());
+        log.info("Account created with ID: {}, accountNumber: {}, userId: {}", 
+                account.getId(), account.getAccountNumber(), account.getUserId());
 
         // Cache the balance
         cacheService.cacheBalance(account.getId(), account.getBalance());

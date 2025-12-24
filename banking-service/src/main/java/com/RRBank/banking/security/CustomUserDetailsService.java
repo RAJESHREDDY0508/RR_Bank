@@ -3,18 +3,16 @@ package com.RRBank.banking.security;
 import com.RRBank.banking.entity.User;
 import com.RRBank.banking.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
-
 /**
  * Custom UserDetailsService implementation
  * Loads user-specific data for authentication
+ * Returns CustomUserDetails which includes userId for account linking
  */
 @Service
 @RequiredArgsConstructor
@@ -31,15 +29,8 @@ public class CustomUserDetailsService implements UserDetailsService {
                         new UsernameNotFoundException("User not found with username or email: " + usernameOrEmail)
                 );
         
-        return org.springframework.security.core.userdetails.User.builder()
-                .username(user.getUsername())
-                .password(user.getPasswordHash())
-                .authorities(Collections.singletonList(
-                        new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
-                ))
-                .accountLocked(user.isAccountLocked())
-                .disabled(user.getStatus() != User.UserStatus.ACTIVE)
-                .build();
+        // Return CustomUserDetails which includes userId
+        return new CustomUserDetails(user);
     }
     
     /**
@@ -52,14 +43,7 @@ public class CustomUserDetailsService implements UserDetailsService {
                         new UsernameNotFoundException("User not found with id: " + userId)
                 );
         
-        return org.springframework.security.core.userdetails.User.builder()
-                .username(user.getUsername())
-                .password(user.getPasswordHash())
-                .authorities(Collections.singletonList(
-                        new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
-                ))
-                .accountLocked(user.isAccountLocked())
-                .disabled(user.getStatus() != User.UserStatus.ACTIVE)
-                .build();
+        // Return CustomUserDetails which includes userId
+        return new CustomUserDetails(user);
     }
 }
