@@ -1,0 +1,90 @@
+# ====================================
+# SHARED CONFIGURATION FOR ALL APPLICATIONS
+# This file contains common configuration shared across all environments
+# ====================================
+
+# Application Information
+info:
+  app:
+    name: RR-Bank Banking Application
+    description: Comprehensive Banking Solution
+    version: 1.0.0
+    organization: RR-Bank
+
+# Logging Configuration
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+  level:
+    root: INFO
+    com.RRBank: DEBUG
+
+# Actuator Configuration
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# JWT Configuration - Base64-encoded 512-bit key for HS512
+jwt:
+  secret: CTl/xK0434/aLcxx5A+Hn6lIEG5vxiqdcu1Wh8yT0I5yRzeZVtlsON6u83FSWe6ZuIdTHznvuSuEutP8GE30Fg==
+  expiration: 86400000
+  refresh-expiration: 604800000
+
+# Common Database Settings
+spring:
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+
+# Common Kafka Settings
+kafka:
+  consumer:
+    auto-offset-reset: earliest
+  producer:
+    compression-type: snappy
+
+# Rate Limiting (Common)
+ratelimit:
+  anonymous: 100
+  authenticated: 200
+  admin: 500
+
+# Circuit Breaker (Common)
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        minimum-number-of-calls: 10
+
+# CORS (Common)
+cors:
+  allowed-origins:
+    - http://localhost:3000
+    - http://localhost:5173
+  allowed-methods:
+    - GET
+    - POST
+    - PUT
+    - PATCH
+    - DELETE
+    - OPTIONS
+  allowed-headers: "*"
+  allow-credentials: true

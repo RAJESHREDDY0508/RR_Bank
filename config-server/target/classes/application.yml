@@ -1,0 +1,21 @@
+server:
+  port: 8888
+
+spring:
+  application:
+    name: config-server
+
+  cloud:
+    config:
+      server:
+        git:
+          uri: file://${user.home}/RRBank-config-repo
+          default-label: main
+          force-pull: true
+          search-paths:
+            - "{application}"
+      fail-on-composite-error: false
+
+logging:
+  level:
+    org.springframework.cloud: DEBUG

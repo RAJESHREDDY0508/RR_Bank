@@ -1,0 +1,1834 @@
+{
+	"info": {
+		"_postman_id": "rr-bank-api-collection",
+		"name": "RR-Bank API Collection",
+		"description": "Complete API collection for RR-Bank Banking Application\n\nPhase 0 Baseline - Created: December 2024\n\nThis collection contains all API endpoints for:\n- Authentication (Register, Login, Token Refresh)\n- Account Management (CRUD, Balance, Status)\n- Transactions (Transfer, Search, Statistics)\n- Customers (Profile, KYC)\n- Payments (Bill, Merchant)\n- Statements (Generate, Download)\n- Fraud Detection (Alerts, Rules, Risk Scores)\n- Audit Logs (Search, Statistics)\n- Notifications (User notifications)\n- MFA (TOTP, SMS, Email OTP)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "accessToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refreshToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "userId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "customerId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "accountId",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "accountNumber",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Auth",
+			"description": "Authentication endpoints for user registration, login, and token management",
+			"item": [
+				{
+					"name": "Register User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('accessToken', jsonData.accessToken);",
+									"    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+									"    pm.collectionVariables.set('userId', jsonData.userId);",
+									"    pm.test('Registration successful', function() {",
+									"        pm.expect(jsonData.accessToken).to.not.be.empty;",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"testuser\",\n    \"email\": \"testuser@rrbank.com\",\n    \"password\": \"SecurePass123!\",\n    \"firstName\": \"Test\",\n    \"lastName\": \"User\",\n    \"phoneNumber\": \"+1234567890\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						}
+					}
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('accessToken', jsonData.accessToken);",
+									"    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+									"    pm.collectionVariables.set('userId', jsonData.userId);",
+									"    pm.test('Login successful', function() {",
+									"        pm.expect(jsonData.accessToken).to.not.be.empty;",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"usernameOrEmail\": \"testuser@rrbank.com\",\n    \"password\": \"SecurePass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('accessToken', jsonData.accessToken);",
+									"    pm.test('Token refreshed', function() {",
+									"        pm.expect(jsonData.accessToken).to.not.be.empty;",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{refreshToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/refresh",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "refresh"]
+						}
+					}
+				},
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "health"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Customers",
+			"description": "Customer profile and KYC management",
+			"item": [
+				{
+					"name": "Create Customer",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('customerId', jsonData.id);",
+									"    pm.test('Customer created', function() {",
+									"        pm.expect(jsonData.id).to.not.be.empty;",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"userId\": \"{{userId}}\",\n    \"firstName\": \"Test\",\n    \"lastName\": \"User\",\n    \"email\": \"testuser@rrbank.com\",\n    \"phoneNumber\": \"+1234567890\",\n    \"dateOfBirth\": \"1990-01-15\",\n    \"address\": {\n        \"street\": \"123 Main St\",\n        \"city\": \"New York\",\n        \"state\": \"NY\",\n        \"zipCode\": \"10001\",\n        \"country\": \"USA\"\n    }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/customers",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "customers"]
+						}
+					}
+				},
+				{
+					"name": "Get Customer by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/customers/{{customerId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "customers", "{{customerId}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Customer by User ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/customers/user/{{userId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "customers", "user", "{{userId}}"]
+						}
+					}
+				},
+				{
+					"name": "Update Customer",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"phoneNumber\": \"+1987654321\",\n    \"address\": {\n        \"street\": \"456 Oak Ave\",\n        \"city\": \"Los Angeles\",\n        \"state\": \"CA\",\n        \"zipCode\": \"90001\",\n        \"country\": \"USA\"\n    }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/customers/{{customerId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "customers", "{{customerId}}"]
+						}
+					}
+				},
+				{
+					"name": "Submit KYC",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"customerId\": \"{{customerId}}\",\n    \"idType\": \"PASSPORT\",\n    \"idNumber\": \"AB123456\",\n    \"idExpiryDate\": \"2030-12-31\",\n    \"addressProofType\": \"UTILITY_BILL\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/customers/kyc",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "customers", "kyc"]
+						}
+					}
+				},
+				{
+					"name": "Verify KYC (Admin)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/customers/{{customerId}}/kyc/verify?approved=true&verifiedBy=ADMIN",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "customers", "{{customerId}}", "kyc", "verify"],
+							"query": [
+								{"key": "approved", "value": "true"},
+								{"key": "verifiedBy", "value": "ADMIN"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get All Customers (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/customers",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "customers"]
+						}
+					}
+				},
+				{
+					"name": "Search Customers",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/customers/search?query=test",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "customers", "search"],
+							"query": [{"key": "query", "value": "test"}]
+						}
+					}
+				},
+				{
+					"name": "Get Pending KYC Customers",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/customers/kyc/pending",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "customers", "kyc", "pending"]
+						}
+					}
+				},
+				{
+					"name": "Get Customer Accounts",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/customers/{{customerId}}/accounts",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "customers", "{{customerId}}", "accounts"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Accounts",
+			"description": "Bank account management",
+			"item": [
+				{
+					"name": "Create Account",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('accountId', jsonData.id);",
+									"    pm.collectionVariables.set('accountNumber', jsonData.accountNumber);",
+									"    pm.test('Account created', function() {",
+									"        pm.expect(jsonData.accountNumber).to.not.be.empty;",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"customerId\": \"{{customerId}}\",\n    \"accountType\": \"SAVINGS\",\n    \"currency\": \"USD\",\n    \"initialDeposit\": 1000.00\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "accounts"]
+						}
+					}
+				},
+				{
+					"name": "Get Account by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts/{{accountId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "accounts", "{{accountId}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Account by Number",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts/number/{{accountNumber}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "accounts", "number", "{{accountNumber}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Customer Accounts",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts/customer/{{customerId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "accounts", "customer", "{{customerId}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Active Accounts",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts/customer/{{customerId}}/active",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "accounts", "customer", "{{customerId}}", "active"]
+						}
+					}
+				},
+				{
+					"name": "Get Account Balance",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts/{{accountId}}/balance",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "accounts", "{{accountId}}", "balance"]
+						}
+					}
+				},
+				{
+					"name": "Get Total Balance",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts/customer/{{customerId}}/total-balance",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "accounts", "customer", "{{customerId}}", "total-balance"]
+						}
+					}
+				},
+				{
+					"name": "Update Account Status (Admin)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"status\": \"FROZEN\",\n    \"reason\": \"Suspicious activity detected\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts/{{accountId}}/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "accounts", "{{accountId}}", "status"]
+						}
+					}
+				},
+				{
+					"name": "Get All Accounts (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "accounts"]
+						}
+					}
+				},
+				{
+					"name": "Get Accounts by Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts/status/ACTIVE",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "accounts", "status", "ACTIVE"]
+						}
+					}
+				},
+				{
+					"name": "Search Accounts",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/accounts/search?query=test",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "accounts", "search"],
+							"query": [{"key": "query", "value": "test"}]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Transactions",
+			"description": "Money transfers and transaction history",
+			"item": [
+				{
+					"name": "Transfer Money",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"fromAccountId\": \"{{accountId}}\",\n    \"toAccountId\": \"<target-account-id>\",\n    \"amount\": 100.00,\n    \"description\": \"Test transfer\",\n    \"currency\": \"USD\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/transactions/transfer",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "transactions", "transfer"]
+						}
+					}
+				},
+				{
+					"name": "Get Transaction by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/transactions/<transaction-id>",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "transactions", "<transaction-id>"]
+						}
+					}
+				},
+				{
+					"name": "Get Transaction by Reference",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/transactions/reference/<reference>",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "transactions", "reference", "<reference>"]
+						}
+					}
+				},
+				{
+					"name": "Get Account Transactions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/transactions/account/{{accountId}}?page=0&size=20",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "transactions", "account", "{{accountId}}"],
+							"query": [
+								{"key": "page", "value": "0"},
+								{"key": "size", "value": "20"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Recent Transactions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/transactions/account/{{accountId}}/recent?limit=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "transactions", "account", "{{accountId}}", "recent"],
+							"query": [{"key": "limit", "value": "10"}]
+						}
+					}
+				},
+				{
+					"name": "Search Transactions",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/transactions/search?accountId={{accountId}}&minAmount=10&maxAmount=1000&page=0&size=20",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "transactions", "search"],
+							"query": [
+								{"key": "accountId", "value": "{{accountId}}"},
+								{"key": "minAmount", "value": "10"},
+								{"key": "maxAmount", "value": "1000"},
+								{"key": "page", "value": "0"},
+								{"key": "size", "value": "20"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Transaction Stats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/transactions/account/{{accountId}}/stats",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "transactions", "account", "{{accountId}}", "stats"]
+						}
+					}
+				},
+				{
+					"name": "Get All Transactions (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/transactions?page=0&size=20",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "transactions"],
+							"query": [
+								{"key": "page", "value": "0"},
+								{"key": "size", "value": "20"}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Payments",
+			"description": "Bill and merchant payment processing",
+			"item": [
+				{
+					"name": "Process Bill Payment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountId\": \"{{accountId}}\",\n    \"payeeName\": \"Electric Company\",\n    \"payeeAccountNumber\": \"BILL-001\",\n    \"amount\": 150.00,\n    \"description\": \"Monthly electricity bill\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/payments/bill",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "payments", "bill"]
+						}
+					}
+				},
+				{
+					"name": "Process Merchant Payment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountId\": \"{{accountId}}\",\n    \"merchantName\": \"Amazon\",\n    \"merchantId\": \"MERCH-001\",\n    \"amount\": 99.99,\n    \"description\": \"Online purchase\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/payments/merchant",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "payments", "merchant"]
+						}
+					}
+				},
+				{
+					"name": "Get Payment by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/payments/<payment-id>",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "payments", "<payment-id>"]
+						}
+					}
+				},
+				{
+					"name": "Get Payment by Reference",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/payments/reference/<reference>",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "payments", "reference", "<reference>"]
+						}
+					}
+				},
+				{
+					"name": "Get Customer Payments",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/payments/customer/{{customerId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "payments", "customer", "{{customerId}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Account Payments",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/payments/account/{{accountId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "payments", "account", "{{accountId}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Recent Payments",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/payments/customer/{{customerId}}/recent?limit=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "payments", "customer", "{{customerId}}", "recent"],
+							"query": [{"key": "limit", "value": "10"}]
+						}
+					}
+				},
+				{
+					"name": "Get Total Payment Amount",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/payments/customer/{{customerId}}/total",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "payments", "customer", "{{customerId}}", "total"]
+						}
+					}
+				},
+				{
+					"name": "Get All Payments (Admin)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/payments",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "payments"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Statements",
+			"description": "Account statement generation and download",
+			"item": [
+				{
+					"name": "Generate Statement",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"accountId\": \"{{accountId}}\",\n    \"startDate\": \"2024-01-01\",\n    \"endDate\": \"2024-12-31\",\n    \"format\": \"PDF\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/statements/generate",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "statements", "generate"]
+						}
+					}
+				},
+				{
+					"name": "Get Account Statements",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/statements/account/{{accountId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "statements", "account", "{{accountId}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Statement by ID",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/statements/<statement-id>",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "statements", "<statement-id>"]
+						}
+					}
+				},
+				{
+					"name": "Download Statement PDF",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/statements/<statement-id>/download/pdf",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "statements", "<statement-id>", "download", "pdf"]
+						}
+					}
+				},
+				{
+					"name": "Download Statement CSV",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/statements/<statement-id>/download/csv",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "statements", "<statement-id>", "download", "csv"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Fraud Detection",
+			"description": "Fraud alerts, rules, and risk scoring",
+			"item": [
+				{
+					"name": "Get All Fraud Alerts",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/fraud/alerts",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "fraud", "alerts"]
+						}
+					}
+				},
+				{
+					"name": "Get High Risk Alerts",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/fraud/alerts/high-risk",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "fraud", "alerts", "high-risk"]
+						}
+					}
+				},
+				{
+					"name": "Get Recent Alerts",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/fraud/alerts/recent",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "fraud", "alerts", "recent"]
+						}
+					}
+				},
+				{
+					"name": "Get Alerts by Account",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/fraud/alerts/account/{{accountId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "fraud", "alerts", "account", "{{accountId}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Risk Score",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/fraud/score/<transaction-id>",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "fraud", "score", "<transaction-id>"]
+						}
+					}
+				},
+				{
+					"name": "Get All Fraud Rules",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/fraud/rules",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "fraud", "rules"]
+						}
+					}
+				},
+				{
+					"name": "Get Enabled Rules",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/fraud/rules/enabled",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "fraud", "rules", "enabled"]
+						}
+					}
+				},
+				{
+					"name": "Create Fraud Rule",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"ruleName\": \"High Amount Alert\",\n    \"ruleType\": \"AMOUNT_THRESHOLD\",\n    \"description\": \"Alert for transactions over $10,000\",\n    \"thresholdAmount\": 10000.00,\n    \"riskScoreWeight\": 1.5,\n    \"enabled\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/fraud/rules",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "fraud", "rules"]
+						}
+					}
+				},
+				{
+					"name": "Update Fraud Rule",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"ruleName\": \"High Amount Alert - Updated\",\n    \"thresholdAmount\": 15000.00,\n    \"enabled\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/fraud/rules/<rule-id>",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "fraud", "rules", "<rule-id>"]
+						}
+					}
+				},
+				{
+					"name": "Delete Fraud Rule",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/fraud/rules/<rule-id>",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "fraud", "rules", "<rule-id>"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Audit",
+			"description": "Audit logs and compliance tracking",
+			"item": [
+				{
+					"name": "Get All Audit Logs",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/audit/logs?page=0&size=20",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "audit", "logs"],
+							"query": [
+								{"key": "page", "value": "0"},
+								{"key": "size", "value": "20"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Customer Audit Logs",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/audit/customer/{{customerId}}?page=0&size=20",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "audit", "customer", "{{customerId}}"],
+							"query": [
+								{"key": "page", "value": "0"},
+								{"key": "size", "value": "20"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Account Audit Logs",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/audit/account/{{accountId}}?page=0&size=20",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "audit", "account", "{{accountId}}"],
+							"query": [
+								{"key": "page", "value": "0"},
+								{"key": "size", "value": "20"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Search Audit Logs",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"eventTypes\": [\"ACCOUNT_CREATED\", \"TRANSACTION_COMPLETED\"],\n    \"startDate\": \"2024-01-01T00:00:00\",\n    \"endDate\": \"2024-12-31T23:59:59\",\n    \"page\": 0,\n    \"size\": 20\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/audit/search",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "audit", "search"]
+						}
+					}
+				},
+				{
+					"name": "Get Audit by Event Type",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/audit/event-type/TRANSACTION_COMPLETED?page=0&size=20",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "audit", "event-type", "TRANSACTION_COMPLETED"],
+							"query": [
+								{"key": "page", "value": "0"},
+								{"key": "size", "value": "20"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Compliance Flagged Logs",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/audit/compliance?page=0&size=20",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "audit", "compliance"],
+							"query": [
+								{"key": "page", "value": "0"},
+								{"key": "size", "value": "20"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get High Severity Logs",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/audit/high-severity?page=0&size=20",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "audit", "high-severity"],
+							"query": [
+								{"key": "page", "value": "0"},
+								{"key": "size", "value": "20"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Audit Date Range",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/audit/date-range?startDate=2024-01-01T00:00:00&endDate=2024-12-31T23:59:59&page=0&size=20",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "audit", "date-range"],
+							"query": [
+								{"key": "startDate", "value": "2024-01-01T00:00:00"},
+								{"key": "endDate", "value": "2024-12-31T23:59:59"},
+								{"key": "page", "value": "0"},
+								{"key": "size", "value": "20"}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Audit Statistics",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/audit/stats",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "audit", "stats"]
+						}
+					}
+				},
+				{
+					"name": "Get Suspicious Activity",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/audit/suspicious",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "audit", "suspicious"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Notifications",
+			"description": "User notification management",
+			"item": [
+				{
+					"name": "Get User Notifications",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/notifications/user/{{userId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "notifications", "user", "{{userId}}"]
+						}
+					}
+				},
+				{
+					"name": "Get Unread Notifications",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/notifications/user/{{userId}}/unread",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "notifications", "user", "{{userId}}", "unread"]
+						}
+					}
+				},
+				{
+					"name": "Get Recent Notifications",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/notifications/user/{{userId}}/recent?limit=10",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "notifications", "user", "{{userId}}", "recent"],
+							"query": [{"key": "limit", "value": "10"}]
+						}
+					}
+				},
+				{
+					"name": "Get Unread Count",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/notifications/user/{{userId}}/unread/count",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "notifications", "user", "{{userId}}", "unread", "count"]
+						}
+					}
+				},
+				{
+					"name": "Mark as Read",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/notifications/<notification-id>/read",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "notifications", "<notification-id>", "read"]
+						}
+					}
+				},
+				{
+					"name": "Mark All as Read",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/notifications/user/{{userId}}/read-all",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "notifications", "user", "{{userId}}", "read-all"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "MFA",
+			"description": "Multi-Factor Authentication setup and verification",
+			"item": [
+				{
+					"name": "Get MFA Status",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/mfa/status",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "mfa", "status"]
+						}
+					}
+				},
+				{
+					"name": "Setup TOTP",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/mfa/totp/setup",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "mfa", "totp", "setup"]
+						}
+					}
+				},
+				{
+					"name": "Verify TOTP",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/mfa/totp/verify",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "mfa", "totp", "verify"]
+						}
+					}
+				},
+				{
+					"name": "Setup Email OTP",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/mfa/email/setup",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "mfa", "email", "setup"]
+						}
+					}
+				},
+				{
+					"name": "Verify Email OTP",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/mfa/email/verify",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "mfa", "email", "verify"]
+						}
+					}
+				},
+				{
+					"name": "Setup SMS OTP",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"phoneNumber\": \"+1234567890\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/mfa/sms/setup",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "mfa", "sms", "setup"]
+						}
+					}
+				},
+				{
+					"name": "Verify SMS OTP",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/mfa/sms/verify",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "mfa", "sms", "verify"]
+						}
+					}
+				},
+				{
+					"name": "Regenerate Backup Codes",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/mfa/backup-codes/regenerate",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "mfa", "backup-codes", "regenerate"]
+						}
+					}
+				},
+				{
+					"name": "Disable MFA",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"code\": \"123456\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/mfa/disable",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "mfa", "disable"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Actuator",
+			"description": "System health and monitoring",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/actuator/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["actuator", "health"]
+						}
+					}
+				},
+				{
+					"name": "Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/actuator/info",
+							"host": ["{{baseUrl}}"],
+							"path": ["actuator", "info"]
+						}
+					}
+				},
+				{
+					"name": "Prometheus Metrics",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/actuator/prometheus",
+							"host": ["{{baseUrl}}"],
+							"path": ["actuator", "prometheus"]
+						}
+					}
+				}
+			]
+		}
+	]
+}

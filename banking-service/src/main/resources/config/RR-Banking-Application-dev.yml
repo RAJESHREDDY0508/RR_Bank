@@ -1,0 +1,72 @@
+# ====================================
+# DEVELOPMENT ENVIRONMENT CONFIGURATION
+# ====================================
+
+server:
+  port: 8080
+
+spring:
+  # H2 Database for development
+  datasource:
+    url: jdbc:h2:mem:rrbank
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+  
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+  
+  # Flyway disabled for H2
+  flyway:
+    enabled: false
+  
+  # Cache disabled for development
+  cache:
+    type: none
+  
+  # Kafka disabled for development (optional)
+  kafka:
+    bootstrap-servers: localhost:9092
+    enabled: false
+
+# Eureka Client disabled by default
+eureka:
+  client:
+    enabled: false
+
+# Config Server disabled by default
+spring:
+  cloud:
+    config:
+      enabled: false
+
+# Logging - Verbose for development
+logging:
+  level:
+    root: INFO
+    com.RRBank: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+
+# JWT Configuration (Development) - Base64-encoded 512-bit key for HS512
+jwt:
+  secret: CTl/xK0434/aLcxx5A+Hn6lIEG5vxiqdcu1Wh8yT0I5yRzeZVtlsON6u83FSWe6ZuIdTHznvuSuEutP8GE30Fg==
+  expiration: 86400000  # 24 hours
+  refresh-expiration: 604800000
+
+# Development-specific settings
+app:
+  environment: development
+  debug-mode: true
+  allow-test-users: true

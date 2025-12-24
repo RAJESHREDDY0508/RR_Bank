@@ -1,0 +1,276 @@
+# ============================================
+# KAFKA TOPICS CONFIGURATION
+# RR-Bank Banking Application - Phase 4
+# ============================================
+
+# ============================================
+# TOPIC NAMING CONVENTION
+# ============================================
+# Format: {service}.{entity-type}
+# Examples: account.events, transaction.events
+# 
+# Retention Periods:
+# - Short-term: 7 days (604800000 ms)
+# - Medium-term: 30 days (2592000000 ms)
+# - Long-term: 90 days (7776000000 ms)
+# - Archive: 1 year (31536000000 ms)
+
+topics:
+  # ============================================
+  # ACCOUNT EVENTS
+  # ============================================
+  - name: account.events
+    description: Account creation, updates, and status changes
+    partitions: 3
+    replication-factor: 2
+    config:
+      retention.ms: 604800000          # 7 days
+      compression.type: snappy
+      min.insync.replicas: 1
+      cleanup.policy: delete
+      segment.ms: 86400000             # 1 day
+      max.message.bytes: 1048576       # 1 MB
+    events:
+      - ACCOUNT_CREATED
+      - ACCOUNT_UPDATED
+      - ACCOUNT_STATUS_CHANGED
+      - BALANCE_UPDATED
+      - ACCOUNT_CLOSED
+  
+  # ============================================
+  # CUSTOMER EVENTS
+  # ============================================
+  - name: customer.events
+    description: Customer registration and profile updates
+    partitions: 3
+    replication-factor: 2
+    config:
+      retention.ms: 604800000          # 7 days
+      compression.type: snappy
+      min.insync.replicas: 1
+      cleanup.policy: delete
+    events:
+      - CUSTOMER_CREATED
+      - CUSTOMER_UPDATED
+      - KYC_VERIFIED
+      - KYC_FAILED
+      - CUSTOMER_SUSPENDED
+      - CUSTOMER_ACTIVATED
+  
+  # ============================================
+  # TRANSACTION EVENTS
+  # ============================================
+  - name: transaction.events
+    description: All transaction processing events
+    partitions: 6
+    replication-factor: 2
+    config:
+      retention.ms: 2592000000         # 30 days
+      compression.type: snappy
+      min.insync.replicas: 1
+      cleanup.policy: delete
+      segment.ms: 86400000             # 1 day
+      max.message.bytes: 1048576       # 1 MB
+    events:
+      - TRANSACTION_INITIATED
+      - TRANSACTION_COMPLETED
+      - TRANSACTION_FAILED
+      - TRANSACTION_REVERSED
+      - TRANSACTION_FLAGGED
+      - TRANSACTION_VALIDATED
+  
+  # ============================================
+  # PAYMENT EVENTS
+  # ============================================
+  - name: payment.events
+    description: Payment processing and scheduling
+    partitions: 3
+    replication-factor: 2
+    config:
+      retention.ms: 2592000000         # 30 days
+      compression.type: snappy
+      min.insync.replicas: 1
+      cleanup.policy: delete
+    events:
+      - PAYMENT_INITIATED
+      - PAYMENT_COMPLETED
+      - PAYMENT_FAILED
+      - PAYMENT_SCHEDULED
+      - PAYMENT_CANCELLED
+      - PAYMENT_REFUNDED
+  
+  # ============================================
+  # NOTIFICATION EVENTS
+  # ============================================
+  - name: notification.events
+    description: Notification creation and delivery
+    partitions: 3
+    replication-factor: 2
+    config:
+      retention.ms: 604800000          # 7 days
+      compression.type: snappy
+      cleanup.policy: delete
+    events:
+      - NOTIFICATION_CREATED
+      - NOTIFICATION_SENT
+      - NOTIFICATION_FAILED
+      - NOTIFICATION_READ
+      - EMAIL_SENT
+      - SMS_SENT
+      - PUSH_NOTIFICATION_SENT
+  
+  # ============================================
+  # FRAUD ALERTS
+  # ============================================
+  - name: fraud.alerts
+    description: Fraud detection alerts and risk scoring
+    partitions: 3
+    replication-factor: 2
+    config:
+      retention.ms: 7776000000         # 90 days
+      compression.type: snappy
+      min.insync.replicas: 1
+      cleanup.policy: delete
+      segment.ms: 86400000             # 1 day
+    events:
+      - FRAUD_DETECTED
+      - FRAUD_RESOLVED
+      - RISK_SCORE_CALCULATED
+      - HIGH_RISK_TRANSACTION
+      - SUSPICIOUS_ACTIVITY
+      - FRAUD_RULE_TRIGGERED
+  
+  # ============================================
+  # STATEMENT EVENTS
+  # ============================================
+  - name: statement.events
+    description: Account statement generation
+    partitions: 2
+    replication-factor: 2
+    config:
+      retention.ms: 2592000000         # 30 days
+      compression.type: snappy
+      cleanup.policy: delete
+    events:
+      - STATEMENT_GENERATED
+      - STATEMENT_REQUESTED
+      - STATEMENT_SENT
+      - STATEMENT_FAILED
+  
+  # ============================================
+  # AUDIT EVENTS
+  # ============================================
+  - name: audit.events
+    description: Complete audit trail for compliance
+    partitions: 6
+    replication-factor: 2
+    config:
+      retention.ms: 31536000000        # 1 year
+      compression.type: snappy
+      min.insync.replicas: 1
+      cleanup.policy: delete
+      segment.ms: 86400000             # 1 day
+      max.message.bytes: 2097152       # 2 MB
+    events:
+      - USER_LOGIN
+      - USER_LOGOUT
+      - ACCOUNT_ACCESS
+      - TRANSACTION_VIEW
+      - CONFIGURATION_CHANGED
+      - SECURITY_EVENT
+      - DATA_EXPORT
+      - ADMIN_ACTION
+  
+  # ============================================
+  # DEAD LETTER QUEUE
+  # ============================================
+  - name: dlq.events
+    description: Failed message processing
+    partitions: 3
+    replication-factor: 2
+    config:
+      retention.ms: 7776000000         # 90 days
+      compression.type: snappy
+      cleanup.policy: delete
+    events:
+      - PROCESSING_FAILED
+      - DESERIALIZATION_ERROR
+      - VALIDATION_ERROR
+  
+  # ============================================
+  # RETRY QUEUE
+  # ============================================
+  - name: retry.events
+    description: Messages requiring retry
+    partitions: 3
+    replication-factor: 2
+    config:
+      retention.ms: 604800000          # 7 days
+      compression.type: snappy
+      cleanup.policy: delete
+    events:
+      - RETRY_SCHEDULED
+      - RETRY_EXHAUSTED
+
+# ============================================
+# KAFKA CLUSTER CONFIGURATION
+# ============================================
+cluster:
+  bootstrap-servers: localhost:9092
+  zookeeper: localhost:2181
+  
+  # Consumer Configuration
+  consumer:
+    group-id: banking-consumer-group
+    auto-offset-reset: earliest
+    enable-auto-commit: false
+    max-poll-records: 500
+    session-timeout-ms: 30000
+    max-poll-interval-ms: 300000
+    
+  # Producer Configuration
+  producer:
+    acks: 1
+    retries: 3
+    batch-size: 16384
+    linger-ms: 10
+    buffer-memory: 33554432
+    compression-type: snappy
+    max-in-flight-requests-per-connection: 5
+    enable-idempotence: true
+    
+  # Admin Configuration
+  admin:
+    request-timeout-ms: 30000
+    
+# ============================================
+# MONITORING AND ALERTING
+# ============================================
+monitoring:
+  enabled: true
+  metrics:
+    - consumer.lag
+    - producer.throughput
+    - topic.size
+    - partition.leader
+  alerts:
+    consumer-lag-threshold: 1000
+    disk-usage-threshold: 80
+    partition-replication-threshold: 1
+
+# ============================================
+# ENVIRONMENT-SPECIFIC OVERRIDES
+# ============================================
+environments:
+  development:
+    replication-factor: 1
+    retention-multiplier: 0.5
+    
+  staging:
+    replication-factor: 2
+    retention-multiplier: 0.75
+    
+  production:
+    replication-factor: 3
+    retention-multiplier: 1.0
+    min-insync-replicas: 2

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RR Banking Application</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">🏦 RR Bank</div>
+            <nav class="nav" id="nav">
+                <button class="nav-btn" onclick="showPage('home')">Home</button>
+                <button class="nav-btn" onclick="showPage('login')" id="loginNavBtn">Login</button>
+                <button class="nav-btn" onclick="showPage('register')" id="registerNavBtn">Register</button>
+                <button class="nav-btn" onclick="showPage('dashboard')" id="dashboardNavBtn" style="display:none;">Dashboard</button>
+                <button class="nav-btn" onclick="showPage('admin')" id="adminNavBtn" style="display:none;">Admin</button>
+                <button class="nav-btn" onclick="logout()" id="logoutNavBtn" style="display:none;">Logout</button>
+            </nav>
+            <div class="user-info" id="userInfo" style="display:none;"></div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            
+            <!-- Home Page -->
+            <div id="homePage" class="page active">
+                <div class="welcome-section">
+                    <h1>Welcome to RR Banking Application</h1>
+                    <p>A secure banking platform with role-based access control</p>
+                    <div class="feature-grid">
+                        <div class="feature-card">
+                            <div class="feature-icon">🔐</div>
+                            <h3>Secure Authentication</h3>
+                            <p>JWT-based authentication with role management</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">👤</div>
+                            <h3>User Management</h3>
+                            <p>Customer and Admin role separation</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">💰</div>
+                            <h3>Account Management</h3>
+                            <p>Create and manage banking accounts</p>
+                        </div>
+                        <div class="feature-card">
+                            <div class="feature-icon">📊</div>
+                            <h3>Admin Dashboard</h3>
+                            <p>Comprehensive user and system management</p>
+                        </div>
+                    </div>
+                    <div class="cta-buttons">
+                        <button class="btn btn-primary" onclick="showPage('register')">Get Started</button>
+                        <button class="btn btn-secondary" onclick="showPage('login')">Sign In</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Login Page -->
+            <div id="loginPage" class="page">
+                <div class="auth-container">
+                    <h2>Sign In</h2>
+                    <form id="loginForm" onsubmit="handleLogin(event)">
+                        <div class="form-group">
+                            <label for="loginUsername">Username</label>
+                            <input type="text" id="loginUsername" required placeholder="Enter your username">
+                        </div>
+                        <div class="form-group">
+                            <label for="loginPassword">Password</label>
+                            <input type="password" id="loginPassword" required placeholder="Enter your password">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+                        <div id="loginError" class="error-message"></div>
+                        <div id="loginSuccess" class="success-message"></div>
+                    </form>
+                    <p class="auth-link">Don't have an account? <a href="#" onclick="showPage('register')">Register here</a></p>
+                </div>
+            </div>
+
+            <!-- Register Page -->
+            <div id="registerPage" class="page">
+                <div class="auth-container">
+                    <h2>Create Account</h2>
+                    <form id="registerForm" onsubmit="handleRegister(event)">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="registerFirstName">First Name</label>
+                                <input type="text" id="registerFirstName" required placeholder="First name">
+                            </div>
+                            <div class="form-group">
+                                <label for="registerLastName">Last Name</label>
+                                <input type="text" id="registerLastName" required placeholder="Last name">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="registerUsername">Username</label>
+                            <input type="text" id="registerUsername" required placeholder="Choose a username">
+                        </div>
+                        <div class="form-group">
+                            <label for="registerEmail">Email</label>
+                            <input type="email" id="registerEmail" required placeholder="your.email@example.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="registerPassword">Password</label>
+                            <input type="password" id="registerPassword" required placeholder="Choose a strong password" minlength="6">
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-block">Create Account</button>
+                        <div id="registerError" class="error-message"></div>
+                        <div id="registerSuccess" class="success-message"></div>
+                    </form>
+                    <p class="auth-link">Already have an account? <a href="#" onclick="showPage('login')">Sign in here</a></p>
+                </div>
+            </div>
+
+            <!-- Dashboard Page (Customer) -->
+            <div id="dashboardPage" class="page">
+                <div class="dashboard-container">
+                    <h2>Customer Dashboard</h2>
+                    <div class="dashboard-grid">
+                        <div class="dashboard-card">
+                            <h3>My Accounts</h3>
+                            <div id="accountsList">
+                                <p class="loading">Loading accounts...</p>
+                            </div>
+                            <button class="btn btn-primary" onclick="showCreateAccountModal()">Create New Account</button>
+                        </div>
+                        <div class="dashboard-card">
+                            <h3>Profile Information</h3>
+                            <div id="profileInfo">
+                                <p class="loading">Loading profile...</p>
+                            </div>
+                        </div>
+                        <div class="dashboard-card">
+                            <h3>JWT Token Info</h3>
+                            <div id="tokenInfo">
+                                <p class="loading">Loading token info...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Admin Page -->
+            <div id="adminPage" class="page">
+                <div class="dashboard-container">
+                    <h2>Admin Dashboard</h2>
+                    <div class="admin-controls">
+                        <button class="btn btn-primary" onclick="loadAllUsers()">Refresh Users</button>
+                        <button class="btn btn-secondary" onclick="loadAllAccounts()">View All Accounts</button>
+                    </div>
+                    <div class="dashboard-grid">
+                        <div class="dashboard-card full-width">
+                            <h3>All Users</h3>
+                            <div id="usersList">
+                                <p class="loading">Loading users...</p>
+                            </div>
+                        </div>
+                        <div class="dashboard-card full-width">
+                            <h3>All Accounts (Admin View)</h3>
+                            <div id="adminAccountsList">
+                                <p class="loading">Click "View All Accounts" to load...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>&copy; 2024 RR Banking Application. All rights reserved.</p>
+            <p>API Status: <span id="apiStatus">Checking...</span></p>
+        </footer>
+    </div>
+
+    <!-- Modal for Create Account -->
+    <div id="createAccountModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeCreateAccountModal()">&times;</span>
+            <h2>Create New Account</h2>
+            <form id="createAccountForm" onsubmit="handleCreateAccount(event)">
+                <div class="form-group">
+                    <label for="accountType">Account Type</label>
+                    <select id="accountType" required>
+                        <option value="SAVINGS">Savings</option>
+                        <option value="CHECKING">Checking</option>
+                        <option value="BUSINESS">Business</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="initialBalance">Initial Balance</label>
+                    <input type="number" id="initialBalance" min="0" step="0.01" value="0" required>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Create Account</button>
+                <div id="createAccountError" class="error-message"></div>
+            </form>
+        </div>
+    </div>
+
+    <script src="/js/app.js"></script>
+</body>
+</html>

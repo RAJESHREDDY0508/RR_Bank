@@ -1,0 +1,46 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/rrbank
+    username: postgres
+    password: Rajesh@2010
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    show-sql: true
+
+  redis:
+    host: localhost
+    port: 6379
+
+  kafka:
+    enabled: false
+    bootstrap-servers: localhost:9092
+
+  application:
+    name: banking-service
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+jwt:
+  # SECURITY: Base64-encoded 512-bit key for HS512 algorithm
+  # Generate new key: openssl rand -base64 64
+  secret: CTl/xK0434/aLcxx5A+Hn6lIEG5vxiqdcu1Wh8yT0I5yRzeZVtlsON6u83FSWe6ZuIdTHznvuSuEutP8GE30Fg==
+  expiration: 86400000
+  refresh-expiration: 604800000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"

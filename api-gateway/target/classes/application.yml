@@ -1,0 +1,35 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+
+      routes:
+        - id: banking-service
+          uri: lb://banking-service
+          predicates:
+            - Path=/api/**      
+          filters:
+            - StripPrefix=1
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+
+jwt:
+  secret: "THIS_IS_A_SECRET_KEY_CHANGE_IT_TO_THE_SAME_AS_BANKING_SERVICE"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
