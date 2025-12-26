@@ -43,6 +43,18 @@ public class AccountController {
     }
 
     /**
+     * Get my accounts (for authenticated user)
+     * GET /api/accounts/me
+     */
+    @GetMapping("/me")
+    @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
+    public ResponseEntity<List<AccountResponseDto>> getMyAccounts() {
+        log.info("REST request to get accounts for authenticated user");
+        List<AccountResponseDto> accounts = accountService.getMyAccounts();
+        return ResponseEntity.ok(accounts);
+    }
+
+    /**
      * Deposit money to account
      * POST /api/accounts/{accountId}/deposit
      */

@@ -7,19 +7,23 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * JWT Authentication Filter
  * Intercepts requests and validates JWT tokens
+ * 
+ * IMPORTANT: Public endpoints are explicitly skipped to ensure
+ * they don't fail due to any token processing issues.
  */
 @Component
 @RequiredArgsConstructor
@@ -28,6 +32,38 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     
     private final JwtTokenProvider jwtTokenProvider;
     private final CustomUserDetailsService userDetailsService;
+    
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
+    
+    /**
+     * List of public paths that should skip JWT validation entirely.
+     * These endpoints are accessible without authentication.
+     */
+    private static final List<String> PUBLIC_PATHS = Arrays.asList(
+            "/api/auth/**",
+            "/actuator/health",
+            "/actuator/info",
+            "/swagger-ui/**",
+            "/swagger-ui.html",
+            "/v3/api-docs/**",
+            "/h2-console/**",
+            "/error"
+    );
+    
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getServletPath();
+        
+        // Skip filter for public endpoints
+        boolean shouldSkip = PUBLIC_PATHS.stream()
+                .anyMatch(pattern -> pathMatcher.match(pattern, path));
+        
+        if (shouldSkip) {
+            log.debug("Skipping JWT filter for public path: {}", path);
+        }
+        
+        return shouldSkip;
+    }
     
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -54,7 +90,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 log.debug("Set authentication for user: {}", username);
             }
         } catch (Exception ex) {
-            log.error("Could not set user authentication in security context", ex);
+            log.error("Could not set user authentication in security context: {}", ex.getMessage());
         }
         
         filterChain.doFilter(request, response);

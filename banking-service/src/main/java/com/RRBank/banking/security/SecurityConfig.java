@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -27,6 +28,12 @@ import java.util.List;
 /**
  * Security Configuration
  * Configures JWT authentication, authorization, and CORS
+ * 
+ * PUBLIC ENDPOINTS (no auth required):
+ * - /api/auth/** (register, login, refresh, health)
+ * - /actuator/health, /actuator/info
+ * - Swagger UI and OpenAPI docs
+ * - Static resources
  */
 @Configuration
 @EnableWebSecurity
@@ -37,12 +44,12 @@ public class SecurityConfig {
     private final CustomUserDetailsService userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     
-    // CORS configuration from application.properties
-    @Value("${cors.allowed-origins:http://localhost:3000}")
-    private String[] allowedOrigins;
+    // CORS configuration from application.yml
+    @Value("${cors.allowed-origins:http://localhost:3000,http://localhost:5173}")
+    private String allowedOriginsString;
     
-    @Value("${cors.allowed-methods:GET,POST,PUT,DELETE,OPTIONS}")
-    private String[] allowedMethods;
+    @Value("${cors.allowed-methods:GET,POST,PUT,DELETE,OPTIONS,PATCH}")
+    private String allowedMethodsString;
     
     @Value("${cors.allowed-headers:*}")
     private String allowedHeaders;
@@ -53,17 +60,29 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+                // Disable CSRF for stateless JWT authentication
                 .csrf(AbstractHttpConfigurer::disable)
+                
+                // Enable CORS with custom configuration
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                
+                // Stateless session management (no server-side sessions)
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
+                
+                // Authorization rules
                 .authorizeHttpRequests(auth -> auth
-                        // Public endpoints - Frontend & Auth
-                        .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/images/**").permitAll()
+                        // ✅ CRITICAL: Allow OPTIONS preflight requests for CORS
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        
+                        // ✅ Public endpoints - Auth (register, login, refresh)
                         .requestMatchers("/api/auth/**").permitAll()
                         
-                        // OpenAPI / Swagger Documentation - Public access for all profiles
+                        // ✅ Public endpoints - Static resources
+                        .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
+                        
+                        // ✅ Public endpoints - OpenAPI / Swagger Documentation
                         .requestMatchers(
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
@@ -73,30 +92,35 @@ public class SecurityConfig {
                                 "/webjars/**"
                         ).permitAll()
                         
-                        // ACTUATOR SECURITY
-                        // Public: Basic health and info (no sensitive details)
+                        // ✅ Public endpoints - Basic health and info
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         
-                        // ADMIN only: Health details, metrics, prometheus
+                        // 🔒 Admin only - Health details, metrics, prometheus
                         .requestMatchers("/actuator/health/**", "/actuator/prometheus", "/actuator/metrics/**").hasRole("ADMIN")
                         
-                        // BLOCKED: All other actuator endpoints (env, beans, mappings, etc.)
+                        // 🚫 Blocked - All other actuator endpoints
                         .requestMatchers("/actuator/**").denyAll()
                         
-                        // H2 Console - Only for development
+                        // ✅ H2 Console - Only for development
                         .requestMatchers("/h2-console/**").permitAll()
                         
-                        // Protected endpoints - Allow both CUSTOMER and ADMIN
+                        // 🔒 Protected endpoints - CUSTOMER and ADMIN roles
                         .requestMatchers("/api/accounts/**").hasAnyRole("CUSTOMER", "ADMIN")
                         .requestMatchers("/api/transactions/**").hasAnyRole("CUSTOMER", "ADMIN")
                         .requestMatchers("/api/transfers/**").hasAnyRole("CUSTOMER", "ADMIN")
                         .requestMatchers("/api/customers/**").hasAnyRole("CUSTOMER", "ADMIN")
+                        
+                        // 🔒 Admin-only endpoints
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         
-                        // All other requests require authentication
+                        // 🔒 All other requests require authentication
                         .anyRequest().authenticated()
                 )
+                
+                // Custom authentication provider
                 .authenticationProvider(authenticationProvider())
+                
+                // Add JWT filter before UsernamePasswordAuthenticationFilter
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         
         return http.build();
@@ -120,17 +144,51 @@ public class SecurityConfig {
         return new BCryptPasswordEncoder(12);
     }
     
+    /**
+     * CORS Configuration
+     * 
+     * Allows cross-origin requests from configured frontend origins.
+     * Critical for React/Vite dev server on different port.
+     */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(Arrays.asList(allowedOrigins));
-        configuration.setAllowedMethods(Arrays.asList(allowedMethods));
-        configuration.setAllowedHeaders("*".equals(allowedHeaders) ? List.of("*") : Arrays.asList(allowedHeaders.split(",")));
+        
+        // Parse allowed origins from comma-separated string
+        List<String> origins = Arrays.asList(allowedOriginsString.split(","));
+        configuration.setAllowedOrigins(origins);
+        
+        // Parse allowed methods from comma-separated string
+        List<String> methods = Arrays.asList(allowedMethodsString.split(","));
+        configuration.setAllowedMethods(methods);
+        
+        // Allow all headers (or parse from config)
+        if ("*".equals(allowedHeaders)) {
+            configuration.setAllowedHeaders(List.of("*"));
+        } else {
+            configuration.setAllowedHeaders(Arrays.asList(allowedHeaders.split(",")));
+        }
+        
+        // Allow credentials (cookies, authorization headers)
         configuration.setAllowCredentials(allowCredentials);
+        
+        // Expose headers that frontend might need
+        configuration.setExposedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "X-Requested-With",
+                "Accept",
+                "Origin",
+                "Access-Control-Request-Method",
+                "Access-Control-Request-Headers"
+        ));
+        
+        // Cache preflight response for 1 hour
         configuration.setMaxAge(3600L);
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
+        
         return source;
     }
 }

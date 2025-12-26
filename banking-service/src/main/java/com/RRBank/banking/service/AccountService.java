@@ -11,6 +11,7 @@ import com.RRBank.banking.security.CustomUserDetails;
 import com.RRBank.banking.util.AccountNumberGenerator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -39,6 +40,11 @@ public class AccountService {
     
     @Autowired(required = false)
     private AccountEventProducer eventProducer;
+    
+    // Lazy injection to avoid circular dependency
+    @Autowired(required = false)
+    @Lazy
+    private TransactionService transactionService;
 
     @Autowired
     public AccountService(AccountRepository accountRepository, 
@@ -117,6 +123,19 @@ public class AccountService {
     }
 
     /**
+     * Get authenticated user ID as UUID (nullable)
+     */
+    private UUID getAuthenticatedUserIdAsUUID() {
+        try {
+            String userId = getAuthenticatedUserId();
+            return UUID.fromString(userId);
+        } catch (Exception e) {
+            log.warn("Could not extract user UUID: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * Validate that userId is not null before saving
      * 
      * @param account The account to validate
@@ -135,6 +154,8 @@ public class AccountService {
      * Create new bank account
      * 
      * SECURITY: Account is automatically linked to the authenticated user
+     * 
+     * ✅ CRITICAL FIX: If initialBalance > 0, creates an Initial Deposit transaction
      */
     @Transactional
     public AccountResponseDto createAccount(CreateAccountDto dto) {
@@ -142,6 +163,7 @@ public class AccountService {
 
         // ✅ CRITICAL: Get authenticated user ID
         String userId = getAuthenticatedUserId();
+        UUID userUUID = getAuthenticatedUserIdAsUUID();
         log.info("Account will be owned by userId: {}", userId);
 
         // Validate account type
@@ -159,6 +181,7 @@ public class AccountService {
         String currency = dto.getCurrency() != null ? dto.getCurrency() : "USD";
         BigDecimal overdraftLimit = dto.getOverdraftLimit() != null ? dto.getOverdraftLimit() : BigDecimal.ZERO;
         BigDecimal interestRate = dto.getInterestRate() != null ? dto.getInterestRate() : BigDecimal.ZERO;
+        BigDecimal initialBalance = dto.getInitialBalance() != null ? dto.getInitialBalance() : BigDecimal.ZERO;
 
         // Create account entity with PENDING status (requires admin approval)
         // ✅ CRITICAL FIX: Set userId from authenticated user
@@ -167,9 +190,9 @@ public class AccountService {
                 .customerId(dto.getCustomerId())
                 .userId(userId)  // ✅ THIS WAS MISSING - NOW FIXED
                 .accountType(accountType)
-                .balance(dto.getInitialBalance())
+                .balance(initialBalance)  // Set initial balance
                 .currency(currency)
-                .status(Account.AccountStatus.PENDING)
+                .status(Account.AccountStatus.ACTIVE)  // ✅ Set to ACTIVE for immediate use
                 .overdraftLimit(overdraftLimit)
                 .interestRate(interestRate)
                 .build();
@@ -178,8 +201,8 @@ public class AccountService {
         validateAccountOwnership(account);
 
         account = accountRepository.save(account);
-        log.info("Account created with ID: {}, accountNumber: {}, userId: {}", 
-                account.getId(), account.getAccountNumber(), account.getUserId());
+        log.info("Account created with ID: {}, accountNumber: {}, userId: {}, initialBalance: {}", 
+                account.getId(), account.getAccountNumber(), account.getUserId(), initialBalance);
 
         // Cache the balance
         cacheService.cacheBalance(account.getId(), account.getBalance());
@@ -199,6 +222,20 @@ public class AccountService {
             eventProducer.publishAccountCreated(event);
         }
 
+        // ✅ CRITICAL: Create Initial Deposit Transaction if initialBalance > 0
+        if (initialBalance.compareTo(BigDecimal.ZERO) > 0 && transactionService != null) {
+            try {
+                log.info("Creating initial deposit transaction for account {} with amount {}", 
+                        account.getId(), initialBalance);
+                transactionService.createInitialDeposit(account.getId(), initialBalance, userUUID);
+                log.info("Initial deposit transaction created successfully");
+            } catch (Exception e) {
+                log.error("Failed to create initial deposit transaction: {}", e.getMessage(), e);
+                // Don't fail account creation if initial deposit fails
+                // The balance is already set on the account
+            }
+        }
+
         return AccountResponseDto.fromEntity(account);
     }
 
@@ -213,6 +250,15 @@ public class AccountService {
                 .orElseThrow(() -> new ResourceNotFoundException("Account not found with ID: " + accountId));
         
         return AccountResponseDto.fromEntity(account);
+    }
+
+    /**
+     * Get account entity by ID (for internal use)
+     */
+    @Transactional(readOnly = true)
+    public Account getAccountEntityById(UUID accountId) {
+        return accountRepository.findById(accountId)
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found with ID: " + accountId));
     }
 
     /**
@@ -236,6 +282,19 @@ public class AccountService {
         log.info("Fetching accounts for customerId: {}", customerId);
         
         return accountRepository.findByCustomerId(customerId).stream()
+                .map(AccountResponseDto::fromEntity)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get accounts for the authenticated user
+     */
+    @Transactional(readOnly = true)
+    public List<AccountResponseDto> getMyAccounts() {
+        String userId = getAuthenticatedUserId();
+        log.info("Fetching accounts for authenticated userId: {}", userId);
+        
+        return accountRepository.findByUserId(userId).stream()
                 .map(AccountResponseDto::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -476,6 +535,7 @@ public class AccountService {
         BigDecimal availableBalance = balance.add(account.getOverdraftLimit());
         
         return BalanceResponseDto.builder()
+                .accountId(account.getId().toString())
                 .accountNumber(account.getAccountNumber())
                 .balance(balance)
                 .availableBalance(availableBalance)

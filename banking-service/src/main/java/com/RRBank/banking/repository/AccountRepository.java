@@ -31,6 +31,11 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
     List<Account> findByCustomerId(UUID customerId);
 
     /**
+     * Find all accounts for a user (by userId string)
+     */
+    List<Account> findByUserId(String userId);
+
+    /**
      * Find accounts by customer ID and status
      */
     List<Account> findByCustomerIdAndStatus(UUID customerId, Account.AccountStatus status);
@@ -52,6 +57,12 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
     List<Account> findActiveAccountsByCustomer(@Param("customerId") UUID customerId);
 
     /**
+     * Find active accounts for user
+     */
+    @Query("SELECT a FROM Account a WHERE a.userId = :userId AND a.status = 'ACTIVE'")
+    List<Account> findActiveAccountsByUserId(@Param("userId") String userId);
+
+    /**
      * Check if account exists for customer
      */
     boolean existsByCustomerIdAndAccountType(UUID customerId, Account.AccountType accountType);
@@ -71,6 +82,12 @@ public interface AccountRepository extends JpaRepository<Account, UUID> {
      */
     @Query("SELECT SUM(a.balance) FROM Account a WHERE a.customerId = :customerId AND a.status = 'ACTIVE'")
     BigDecimal getTotalBalanceByCustomer(@Param("customerId") UUID customerId);
+
+    /**
+     * Get total balance for user
+     */
+    @Query("SELECT SUM(a.balance) FROM Account a WHERE a.userId = :userId AND a.status = 'ACTIVE'")
+    BigDecimal getTotalBalanceByUserId(@Param("userId") String userId);
 
     /**
      * Find account with pessimistic lock (for transactions)
