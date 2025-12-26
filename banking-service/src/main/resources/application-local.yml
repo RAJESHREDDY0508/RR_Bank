@@ -1,0 +1,102 @@
+# ============================================================
+# RR-Bank Banking Service - LOCAL Profile
+# ============================================================
+# Development configuration for local machine.
+# Use: mvn spring-boot:run -Dspring.profiles.active=local
+# ============================================================
+
+spring:
+  config:
+    activate:
+      on-profile: local
+
+  # PostgreSQL Database - Local
+  datasource:
+    url: jdbc:postgresql://localhost:5432/rrbank
+    username: postgres
+    password: Rajesh@2010
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 300000
+      connection-timeout: 20000
+
+  # JPA/Hibernate - Local Development
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  # Flyway - Local (DISABLED - using Hibernate ddl-auto instead)
+  flyway:
+    enabled: false
+    # baseline-on-migrate: true
+    # baseline-version: 0
+    # locations: classpath:db/migration
+    # validate-on-migrate: false
+    # repair-on-migrate: true
+
+  # Redis - Local
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 2000ms
+
+  # Kafka - Disabled for local development
+  kafka:
+    enabled: false
+    bootstrap-servers: localhost:9092
+
+# ============================================================
+# JWT - Local Development Key
+# ============================================================
+jwt:
+  # This key is for LOCAL DEVELOPMENT ONLY
+  # Never use this in production!
+  secret: CTl/xK0434/aLcxx5A+Hn6lIEG5vxiqdcu1Wh8yT0I5yRzeZVtlsON6u83FSWe6ZuIdTHznvuSuEutP8GE30Fg==
+  expiration: 86400000
+  refresh-expiration: 604800000
+
+# ============================================================
+# CORS - Allow localhost
+# ============================================================
+cors:
+  allowed-origins: http://localhost:3000,http://localhost:8080,http://127.0.0.1:3000
+
+# ============================================================
+# Actuator - Full access for local development
+# ============================================================
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+
+# ============================================================
+# Logging - Verbose for debugging
+# ============================================================
+logging:
+  level:
+    root: INFO
+    com.RRBank: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql: TRACE
+    org.flywaydb: DEBUG
+
+# ============================================================
+# Swagger - Full features enabled
+# ============================================================
+springdoc:
+  swagger-ui:
+    enabled: true
+    try-it-out-enabled: true

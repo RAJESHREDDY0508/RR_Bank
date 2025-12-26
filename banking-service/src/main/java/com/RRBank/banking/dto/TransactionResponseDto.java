@@ -32,6 +32,9 @@ public class TransactionResponseDto {
     private String status;
     private String description;
     private String failureReason;
+    private BigDecimal balanceBefore;
+    private BigDecimal balanceAfter;
+    private LocalDateTime transactionDate;
     private LocalDateTime completedAt;
     private LocalDateTime createdAt;
 
@@ -43,13 +46,18 @@ public class TransactionResponseDto {
                 .id(transaction.getId())
                 .transactionReference(transaction.getTransactionReference())
                 .fromAccountId(transaction.getFromAccountId())
+                .fromAccountNumber(transaction.getFromAccountNumber())
                 .toAccountId(transaction.getToAccountId())
+                .toAccountNumber(transaction.getToAccountNumber())
                 .transactionType(transaction.getTransactionType().name())
                 .amount(transaction.getAmount())
                 .currency(transaction.getCurrency())
                 .status(transaction.getStatus().name())
                 .description(transaction.getDescription())
                 .failureReason(transaction.getFailureReason())
+                .balanceBefore(transaction.getBalanceBefore())
+                .balanceAfter(transaction.getBalanceAfter())
+                .transactionDate(transaction.getTransactionDate())
                 .completedAt(transaction.getCompletedAt())
                 .createdAt(transaction.getCreatedAt())
                 .build();

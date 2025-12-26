@@ -20,23 +20,35 @@ import java.util.UUID;
 @Builder
 public class StatementGeneratedEvent {
 
+    // Identifiers
     private UUID statementId;
     private UUID accountId;
     private UUID customerId;
+
+    // Statement period (domain)
     private String statementPeriod;
     private LocalDate periodStartDate;
     private LocalDate periodEndDate;
-    private LocalDate startDate; // Alias for periodStartDate (for audit compatibility)
-    private LocalDate endDate; // Alias for periodEndDate (for audit compatibility)
+
+    // Required by AuditEventsConsumer
+    private LocalDate startDate;
+    private LocalDate endDate;
+
+    // Statement details
     private String statementType;
     private BigDecimal openingBalance;
     private BigDecimal closingBalance;
     private Integer totalTransactions;
+
+    // File locations
     private String pdfFilePath;
     private String csvFilePath;
     private String s3Bucket;
+
+    // Timestamp
     private LocalDateTime generatedAt;
-    
+
+    // Event metadata
     @Builder.Default
     private String eventType = "STATEMENT_GENERATED";
 }

@@ -30,7 +30,13 @@ const Login = () => {
       await login(formData);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
+      const message = err.response?.data?.message || 'Login failed. Please check your credentials.';
+      // Handle account locked
+      if (message.toLowerCase().includes('locked')) {
+        setError('Your account has been locked due to too many failed attempts. Please try again later or reset your password.');
+      } else {
+        setError(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -123,9 +129,9 @@ const Login = () => {
               </div>
 
               <div className="text-sm">
-                <a href="#" className="font-medium text-primary-600 hover:text-primary-500">
+                <Link to="/forgot-password" className="font-medium text-primary-600 hover:text-primary-500">
                   Forgot password?
-                </a>
+                </Link>
               </div>
             </div>
 

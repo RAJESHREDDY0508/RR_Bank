@@ -1,38 +1,62 @@
-# Multi-stage build for Spring Boot Application
+# ============================================================
+# RR-Bank Banking Service - Production Dockerfile
+# Multi-stage build for minimal image size
+# ============================================================
 
 # Stage 1: Build
-FROM maven:3.9-eclipse-temurin-21 AS build
+FROM eclipse-temurin:21-jdk-alpine AS builder
+
 WORKDIR /app
 
-# Copy pom.xml and download dependencies
+# Copy Maven wrapper and pom.xml first (for layer caching)
+COPY mvnw .
+COPY .mvn .mvn
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
 
-# Copy source code and build
+# Download dependencies (cached layer)
+RUN chmod +x mvnw && ./mvnw dependency:go-offline -B
+
+# Copy source code
 COPY src ./src
-RUN mvn clean package -DskipTests
+
+# Build application
+RUN ./mvnw clean package -DskipTests -B
 
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jre-alpine
+
+LABEL maintainer="RR-Bank Team"
+LABEL version="1.0.0"
+LABEL description="RR-Bank Banking Service"
+
+# Create non-root user for security
+RUN addgroup -S rrbank && adduser -S rrbank -G rrbank
+
 WORKDIR /app
 
-# Create non-root user
-RUN addgroup -S spring && adduser -S spring -G spring
-USER spring:spring
+# Copy jar from builder
+COPY --from=builder /app/target/*.jar app.jar
 
-# Copy the built JAR from build stage
-COPY --from=build /app/target/*.jar app.jar
+# Set ownership
+RUN chown -R rrbank:rrbank /app
 
-# Expose application port
-EXPOSE 8080
+# Switch to non-root user
+USER rrbank
+
+# JVM optimization for containers
+ENV JAVA_OPTS="-XX:+UseContainerSupport \
+               -XX:MaxRAMPercentage=75.0 \
+               -XX:InitialRAMPercentage=50.0 \
+               -XX:+UseG1GC \
+               -XX:+UseStringDeduplication \
+               -Djava.security.egd=file:/dev/./urandom"
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:8080/actuator/health || exit 1
 
-# Run the application
-ENTRYPOINT ["java", \
-  "-Djava.security.egd=file:/dev/./urandom", \
-  "-Dspring.profiles.active=prod", \
-  "-jar", \
-  "app.jar"]
+# Expose port
+EXPOSE 8080
+
+# Run application
+ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -jar app.jar"]

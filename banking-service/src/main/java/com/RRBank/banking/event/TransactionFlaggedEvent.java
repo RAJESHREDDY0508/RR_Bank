@@ -20,20 +20,34 @@ import java.util.UUID;
 @Builder
 public class TransactionFlaggedEvent {
 
+    // Fraud identifiers
     private UUID fraudEventId;
     private UUID transactionId;
+
+    // Primary account (used by AuditEventsConsumer)
     private UUID accountId;
+
+    // Domain context
     private UUID customerId;
     private BigDecimal transactionAmount;
     private String transactionType;
+
+    // Risk analysis
     private BigDecimal riskScore;
     private String riskLevel;
+
+    // Fraud reasons (domain + audit compatibility)
     private List<String> fraudReasons;
-    private String fraudReason; // Single reason string for audit compatibility
+    private String fraudReason;
+
+    // Rules & actions
     private List<String> rulesTriggered;
     private String recommendation; // BLOCK, REVIEW, MONITOR
+
+    // Timestamp
     private LocalDateTime flaggedAt;
-    
+
+    // Event metadata
     @Builder.Default
     private String eventType = "TRANSACTION_FLAGGED";
 }

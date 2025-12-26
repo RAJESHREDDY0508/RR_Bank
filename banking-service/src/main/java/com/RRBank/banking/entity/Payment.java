@@ -12,17 +12,15 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Payment Entity
- * Represents bill payments and merchant payments
+ * Payment Entity - Bill payments and scheduled payments
  */
 @Entity
 @Table(name = "payments", indexes = {
-    @Index(name = "idx_payment_account", columnList = "account_id"),
-    @Index(name = "idx_payment_customer", columnList = "customer_id"),
-    @Index(name = "idx_payment_reference", columnList = "payment_reference"),
-    @Index(name = "idx_payment_status", columnList = "status"),
-    @Index(name = "idx_payment_type", columnList = "payment_type"),
-    @Index(name = "idx_payment_created_at", columnList = "created_at")
+    @Index(name = "idx_payments_reference", columnList = "payment_reference"),
+    @Index(name = "idx_payments_account", columnList = "account_id"),
+    @Index(name = "idx_payments_status", columnList = "status"),
+    @Index(name = "idx_payments_scheduled", columnList = "scheduled_date"),
+    @Index(name = "idx_payments_created_at", columnList = "created_at")
 })
 @Data
 @NoArgsConstructor
@@ -32,6 +30,7 @@ public class Payment {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
     @Column(name = "payment_reference", nullable = false, unique = true, length = 50)
@@ -40,41 +39,52 @@ public class Payment {
     @Column(name = "account_id", nullable = false)
     private UUID accountId;
 
-    @Column(name = "customer_id", nullable = false)
+    @Column(name = "customer_id")
     private UUID customerId;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "payment_type", nullable = false, length = 20)
-    private PaymentType paymentType;
 
     @Column(name = "payee_name", nullable = false, length = 200)
     private String payeeName;
 
-    @Column(name = "payee_account", length = 100)
+    @Column(name = "payee_account", length = 50)
     private String payeeAccount;
+
+    @Column(name = "payee_account_number", length = 50)
+    private String payeeAccountNumber;
 
     @Column(name = "payee_reference", length = 100)
     private String payeeReference;
 
-    @Column(name = "amount", nullable = false, precision = 15, scale = 2)
+    @Column(name = "payee_bank_code", length = 20)
+    private String payeeBankCode;
+
+    @Column(name = "payee_bank_name", length = 100)
+    private String payeeBankName;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_type", nullable = false, length = 30)
+    private PaymentType paymentType;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", length = 30)
+    private PaymentMethod paymentMethod;
+
+    @Column(name = "amount", nullable = false, precision = 19, scale = 4)
     private BigDecimal amount;
 
     @Column(name = "currency", nullable = false, length = 3)
-    private String currency;
+    @Builder.Default
+    private String currency = "USD";
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
-    private PaymentStatus status;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "payment_method", length = 20)
-    private PaymentMethod paymentMethod;
-
-    @Column(name = "description", columnDefinition = "TEXT")
-    private String description;
+    @Builder.Default
+    private PaymentStatus status = PaymentStatus.PENDING;
 
     @Column(name = "scheduled_date")
     private LocalDate scheduledDate;
+
+    @Column(name = "execution_date")
+    private LocalDateTime executionDate;
 
     @Column(name = "processed_at")
     private LocalDateTime processedAt;
@@ -84,6 +94,19 @@ public class Payment {
 
     @Column(name = "gateway_response", columnDefinition = "TEXT")
     private String gatewayResponse;
+
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
+    @Column(name = "recurring")
+    @Builder.Default
+    private Boolean recurring = false;
+
+    @Column(name = "recurring_frequency", length = 20)
+    private String recurringFrequency;
+
+    @Column(name = "recurring_end_date")
+    private LocalDate recurringEndDate;
 
     @Column(name = "failure_reason", columnDefinition = "TEXT")
     private String failureReason;
@@ -99,18 +122,13 @@ public class Payment {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
+        createdAt = now;
+        updatedAt = now;
         
-        if (status == null) {
-            status = PaymentStatus.PENDING;
-        }
-        if (currency == null) {
-            currency = "USD";
-        }
-        if (scheduledDate == null) {
-            scheduledDate = LocalDate.now();
-        }
+        if (status == null) status = PaymentStatus.PENDING;
+        if (currency == null) currency = "USD";
+        if (recurring == null) recurring = false;
     }
 
     @PreUpdate
@@ -118,84 +136,84 @@ public class Payment {
         updatedAt = LocalDateTime.now();
     }
 
-    /**
-     * Check if payment is pending
-     */
     public boolean isPending() {
-        return status == PaymentStatus.PENDING || status == PaymentStatus.SCHEDULED;
+        return status == PaymentStatus.PENDING;
     }
 
-    /**
-     * Check if payment is completed
-     */
+    public boolean isScheduled() {
+        return status == PaymentStatus.SCHEDULED;
+    }
+
     public boolean isCompleted() {
         return status == PaymentStatus.COMPLETED;
     }
 
-    /**
-     * Check if payment is failed
-     */
     public boolean isFailed() {
         return status == PaymentStatus.FAILED;
     }
 
-    /**
-     * Mark payment as completed
-     */
-    public void markCompleted(String gatewayTransactionId) {
+    public void markProcessing() {
+        this.status = PaymentStatus.PROCESSING;
+    }
+
+    public void markCompleted() {
         this.status = PaymentStatus.COMPLETED;
-        this.gatewayTransactionId = gatewayTransactionId;
+        this.executionDate = LocalDateTime.now();
         this.processedAt = LocalDateTime.now();
     }
 
-    /**
-     * Mark payment as failed
-     */
+    public void markCompleted(String transactionId) {
+        this.status = PaymentStatus.COMPLETED;
+        this.executionDate = LocalDateTime.now();
+        this.processedAt = LocalDateTime.now();
+        this.gatewayTransactionId = transactionId;
+    }
+
     public void markFailed(String reason) {
         this.status = PaymentStatus.FAILED;
         this.failureReason = reason;
+        this.executionDate = LocalDateTime.now();
         this.processedAt = LocalDateTime.now();
     }
 
-    /**
-     * Check if payment is scheduled for future
-     */
+    public void markCancelled() {
+        this.status = PaymentStatus.CANCELLED;
+    }
+
     public boolean isScheduledForFuture() {
         return scheduledDate != null && scheduledDate.isAfter(LocalDate.now());
     }
 
-    /**
-     * Payment Type Enum
-     */
+    public boolean isRecurring() {
+        return Boolean.TRUE.equals(recurring);
+    }
+
     public enum PaymentType {
-        BILL,           // Bill payment (utilities, credit cards, etc.)
-        MERCHANT,       // Merchant payment (online shopping, services)
-        P2P,            // Person-to-person payment
-        SUBSCRIPTION,   // Recurring subscription payment
-        INVOICE         // Invoice payment
+        BILL_PAYMENT,
+        BILL,
+        WIRE_TRANSFER,
+        ACH,
+        INTERNAL,
+        EXTERNAL,
+        MERCHANT
     }
 
-    /**
-     * Payment Status Enum
-     */
-    public enum PaymentStatus {
-        PENDING,        // Payment initiated, waiting for processing
-        SCHEDULED,      // Payment scheduled for future date
-        PROCESSING,     // Payment is being processed
-        COMPLETED,      // Payment successfully completed
-        FAILED,         // Payment failed
-        CANCELLED,      // Payment cancelled by user
-        REFUNDED        // Payment refunded
-    }
-
-    /**
-     * Payment Method Enum
-     */
     public enum PaymentMethod {
-        DEBIT_CARD,     // Debit card payment
-        CREDIT_CARD,    // Credit card payment
-        ACH,            // ACH transfer
-        WIRE,           // Wire transfer
-        WALLET          // Digital wallet
+        BANK_TRANSFER,
+        DEBIT_CARD,
+        CREDIT_CARD,
+        ACH,
+        WIRE,
+        CHECK,
+        CASH
+    }
+
+    public enum PaymentStatus {
+        PENDING,
+        SCHEDULED,
+        PROCESSING,
+        COMPLETED,
+        FAILED,
+        CANCELLED
     }
 }

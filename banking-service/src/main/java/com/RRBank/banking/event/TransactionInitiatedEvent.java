@@ -19,19 +19,27 @@ import java.util.UUID;
 @NoArgsConstructor
 public class TransactionInitiatedEvent {
 
+    // Core identifiers
     private UUID transactionId;
     private UUID accountId;
     private UUID fromAccountId;
     private UUID toAccountId;
+
+    // Transaction details
     private BigDecimal amount;
     private String transactionType;
     private String currency;
     private String description;
+
+    // Status & tracking
     private String status;
     private String transactionReference;
+
+    // Audit metadata
     private UUID initiatedBy;
     private LocalDateTime initiatedAt;
-    
+
+    // Event metadata
     @Builder.Default
     private String eventType = "TRANSACTION_INITIATED";
 }

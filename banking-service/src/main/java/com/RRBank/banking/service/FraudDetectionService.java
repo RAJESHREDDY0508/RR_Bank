@@ -21,7 +21,6 @@ import java.util.stream.Collectors;
 
 /**
  * Fraud Detection Service
- * Analyzes transactions for fraud and manages fraud rules
  */
 @Service
 @Slf4j
@@ -44,21 +43,13 @@ public class FraudDetectionService {
         this.eventProducer = eventProducer;
     }
 
-    /**
-     * Analyze transaction for fraud
-     * Called by transaction event consumer
-     */
     @Transactional
     public FraudEvent analyzeTransaction(FraudRulesEngine.TransactionContext context) {
         log.info("Analyzing transaction {} for fraud", context.getTransactionId());
 
-        // Evaluate against rules
         FraudRulesEngine.FraudEvaluationResult result = rulesEngine.evaluateTransaction(context);
-
-        // Determine risk level
         FraudEvent.RiskLevel riskLevel = calculateRiskLevel(result.getRiskScore());
 
-        // Create fraud event
         FraudEvent fraudEvent = FraudEvent.builder()
                 .transactionId(context.getTransactionId())
                 .accountId(context.getAccountId())
@@ -68,20 +59,20 @@ public class FraudDetectionService {
                 .riskScore(result.getRiskScore())
                 .riskLevel(riskLevel)
                 .status(FraudEvent.FraudStatus.PENDING_REVIEW)
+                .flaggedReason(String.join(", ", result.getFraudReasons()))
                 .fraudReasons(String.join(",", result.getFraudReasons()))
                 .rulesTriggered(result.getTriggeredRules().stream()
                         .map(r -> r.getId().toString())
                         .collect(Collectors.joining(",")))
                 .locationCountry(context.getLocationCountry())
                 .locationCity(context.getLocationCity())
-                .locationIp(context.getLocationIp())
+                .ipAddress(context.getLocationIp())
                 .deviceFingerprint(context.getDeviceFingerprint())
                 .actionTaken(result.isShouldBlock() ? "BLOCKED" : "FLAGGED_FOR_REVIEW")
+                .eventType("TRANSACTION_FRAUD_CHECK")
                 .build();
 
         fraudEvent = fraudEventRepository.save(fraudEvent);
-
-        // Publish events
         publishEvents(fraudEvent, result);
 
         log.info("Fraud analysis complete for transaction {}. Risk score: {}, Level: {}",
@@ -90,9 +81,6 @@ public class FraudDetectionService {
         return fraudEvent;
     }
 
-    /**
-     * Get risk score for transaction
-     */
     @Transactional(readOnly = true)
     public RiskScoreResponseDto getRiskScore(UUID transactionId) {
         log.info("Getting risk score for transaction: {}", transactionId);
@@ -112,82 +100,55 @@ public class FraudDetectionService {
                 .build();
     }
 
-    /**
-     * Get all fraud alerts
-     */
     @Transactional(readOnly = true)
     public List<FraudEventResponseDto> getAllAlerts() {
         log.info("Fetching all fraud alerts");
-
         return fraudEventRepository.findAll().stream()
                 .map(FraudEventResponseDto::fromEntity)
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Get high-risk alerts pending review
-     */
     @Transactional(readOnly = true)
     public List<FraudEventResponseDto> getHighRiskAlerts() {
         log.info("Fetching high-risk fraud alerts");
-
         return fraudEventRepository.findHighRiskPendingReview().stream()
                 .map(FraudEventResponseDto::fromEntity)
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Get recent fraud events (last 24 hours)
-     */
     @Transactional(readOnly = true)
     public List<FraudEventResponseDto> getRecentAlerts() {
         log.info("Fetching recent fraud alerts");
-
         LocalDateTime since = LocalDateTime.now().minusHours(24);
         return fraudEventRepository.findRecentEvents(since).stream()
                 .map(FraudEventResponseDto::fromEntity)
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Get fraud alerts by account
-     */
     @Transactional(readOnly = true)
     public List<FraudEventResponseDto> getAlertsByAccount(UUID accountId) {
         log.info("Fetching fraud alerts for accountId: {}", accountId);
-
         return fraudEventRepository.findByAccountIdOrderByCreatedAtDesc(accountId).stream()
                 .map(FraudEventResponseDto::fromEntity)
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Get all fraud rules
-     */
     @Transactional(readOnly = true)
     public List<FraudRuleResponseDto> getAllRules() {
         log.info("Fetching all fraud rules");
-
         return fraudRuleRepository.findAll().stream()
                 .map(FraudRuleResponseDto::fromEntity)
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Get enabled fraud rules
-     */
     @Transactional(readOnly = true)
     public List<FraudRuleResponseDto> getEnabledRules() {
         log.info("Fetching enabled fraud rules");
-
         return fraudRuleRepository.findAllEnabledOrderByPriority().stream()
                 .map(FraudRuleResponseDto::fromEntity)
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Create fraud rule
-     */
     @Transactional
     public FraudRuleResponseDto createRule(FraudRuleRequestDto request, UUID createdBy) {
         log.info("Creating fraud rule: {}", request.getRuleName());
@@ -195,27 +156,24 @@ public class FraudDetectionService {
         FraudRule rule = FraudRule.builder()
                 .ruleName(request.getRuleName())
                 .ruleDescription(request.getRuleDescription())
+                .description(request.getRuleDescription())
                 .ruleType(FraudRule.RuleType.valueOf(request.getRuleType().toUpperCase()))
                 .thresholdValue(request.getThresholdValue())
+                .thresholdAmount(request.getThresholdValue())
                 .timeWindowMinutes(request.getTimeWindowMinutes())
                 .riskScorePoints(request.getRiskScorePoints())
                 .priority(request.getPriority() != null ? request.getPriority() : 5)
+                .enabled(request.getIsEnabled() != null ? request.getIsEnabled() : true)
                 .isEnabled(request.getIsEnabled() != null ? request.getIsEnabled() : true)
                 .autoBlock(request.getAutoBlock() != null ? request.getAutoBlock() : false)
                 .countryBlacklist(request.getCountryBlacklist())
-                .createdBy(createdBy)
                 .build();
 
         rule = fraudRuleRepository.save(rule);
-
         log.info("Fraud rule created: {}", rule.getId());
-
         return FraudRuleResponseDto.fromEntity(rule);
     }
 
-    /**
-     * Update fraud rule
-     */
     @Transactional
     public FraudRuleResponseDto updateRule(UUID ruleId, FraudRuleRequestDto request) {
         log.info("Updating fraud rule: {}", ruleId);
@@ -223,58 +181,39 @@ public class FraudDetectionService {
         FraudRule rule = fraudRuleRepository.findById(ruleId)
                 .orElseThrow(() -> new ResourceNotFoundException("Fraud rule not found: " + ruleId));
 
-        if (request.getRuleName() != null) {
-            rule.setRuleName(request.getRuleName());
-        }
+        if (request.getRuleName() != null) rule.setRuleName(request.getRuleName());
         if (request.getRuleDescription() != null) {
             rule.setRuleDescription(request.getRuleDescription());
+            rule.setDescription(request.getRuleDescription());
         }
         if (request.getThresholdValue() != null) {
             rule.setThresholdValue(request.getThresholdValue());
+            rule.setThresholdAmount(request.getThresholdValue());
         }
-        if (request.getTimeWindowMinutes() != null) {
-            rule.setTimeWindowMinutes(request.getTimeWindowMinutes());
-        }
-        if (request.getRiskScorePoints() != null) {
-            rule.setRiskScorePoints(request.getRiskScorePoints());
-        }
-        if (request.getPriority() != null) {
-            rule.setPriority(request.getPriority());
-        }
+        if (request.getTimeWindowMinutes() != null) rule.setTimeWindowMinutes(request.getTimeWindowMinutes());
+        if (request.getRiskScorePoints() != null) rule.setRiskScorePoints(request.getRiskScorePoints());
+        if (request.getPriority() != null) rule.setPriority(request.getPriority());
         if (request.getIsEnabled() != null) {
+            rule.setEnabled(request.getIsEnabled());
             rule.setIsEnabled(request.getIsEnabled());
         }
-        if (request.getAutoBlock() != null) {
-            rule.setAutoBlock(request.getAutoBlock());
-        }
-        if (request.getCountryBlacklist() != null) {
-            rule.setCountryBlacklist(request.getCountryBlacklist());
-        }
+        if (request.getAutoBlock() != null) rule.setAutoBlock(request.getAutoBlock());
+        if (request.getCountryBlacklist() != null) rule.setCountryBlacklist(request.getCountryBlacklist());
 
         rule = fraudRuleRepository.save(rule);
-
         log.info("Fraud rule updated: {}", ruleId);
-
         return FraudRuleResponseDto.fromEntity(rule);
     }
 
-    /**
-     * Delete fraud rule
-     */
     @Transactional
     public void deleteRule(UUID ruleId) {
         log.info("Deleting fraud rule: {}", ruleId);
-
         fraudRuleRepository.deleteById(ruleId);
-
         log.info("Fraud rule deleted: {}", ruleId);
     }
 
-    // ========== HELPER METHODS ==========
-
     private FraudEvent.RiskLevel calculateRiskLevel(BigDecimal riskScore) {
         int score = riskScore.intValue();
-        
         if (score >= 76) return FraudEvent.RiskLevel.CRITICAL;
         if (score >= 51) return FraudEvent.RiskLevel.HIGH;
         if (score >= 26) return FraudEvent.RiskLevel.MEDIUM;
@@ -291,13 +230,11 @@ public class FraudDetectionService {
     }
 
     private void publishEvents(FraudEvent fraudEvent, FraudRulesEngine.FraudEvaluationResult result) {
-        // Skip publishing if Kafka is disabled
         if (eventProducer == null) {
             log.debug("Kafka is disabled, skipping event publishing for fraud event: {}", fraudEvent.getId());
             return;
         }
 
-        // Publish Transaction Flagged event
         TransactionFlaggedEvent flaggedEvent = TransactionFlaggedEvent.builder()
                 .fraudEventId(fraudEvent.getId())
                 .transactionId(fraudEvent.getTransactionId())
@@ -317,7 +254,6 @@ public class FraudDetectionService {
 
         eventProducer.publishTransactionFlagged(flaggedEvent);
 
-        // Publish Fraud Alert for high/critical risk
         if (fraudEvent.isHighRisk()) {
             FraudAlertEvent alertEvent = FraudAlertEvent.builder()
                     .fraudEventId(fraudEvent.getId())

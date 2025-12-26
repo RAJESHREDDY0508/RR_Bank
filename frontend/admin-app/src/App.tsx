@@ -7,6 +7,7 @@ import Customers from './pages/Customers';
 import CustomerDetails from './pages/CustomerDetails';
 import Accounts from './pages/Accounts';
 import AccountDetails from './pages/AccountDetails';
+import AccountRequests from './pages/AccountRequests';
 import Transactions from './pages/Transactions';
 import Payments from './pages/Payments';
 import FraudAlerts from './pages/FraudAlerts';
@@ -38,6 +39,7 @@ function App() {
         <Route path="/customers/:id" element={<CustomerDetails />} />
         <Route path="/accounts" element={<Accounts />} />
         <Route path="/accounts/:id" element={<AccountDetails />} />
+        <Route path="/account-requests" element={<AccountRequests />} />
         <Route path="/transactions" element={<Transactions />} />
         <Route path="/payments" element={<Payments />} />
         <Route path="/fraud-alerts" element={<FraudAlerts />} />

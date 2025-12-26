@@ -10,17 +10,14 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Notification Entity
- * Represents notifications sent to users
+ * Notification Entity - User notifications (email, SMS, push, in-app)
  */
 @Entity
 @Table(name = "notifications", indexes = {
-    @Index(name = "idx_notification_user", columnList = "user_id"),
-    @Index(name = "idx_notification_type", columnList = "notification_type"),
-    @Index(name = "idx_notification_channel", columnList = "channel"),
-    @Index(name = "idx_notification_status", columnList = "status"),
-    @Index(name = "idx_notification_read", columnList = "is_read"),
-    @Index(name = "idx_notification_created_at", columnList = "created_at")
+    @Index(name = "idx_notifications_user", columnList = "user_id"),
+    @Index(name = "idx_notifications_type", columnList = "notification_type"),
+    @Index(name = "idx_notifications_status", columnList = "status"),
+    @Index(name = "idx_notifications_created_at", columnList = "created_at")
 })
 @Data
 @NoArgsConstructor
@@ -30,6 +27,7 @@ public class Notification {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
     @Column(name = "user_id", nullable = false)
@@ -43,48 +41,47 @@ public class Notification {
     @Column(name = "channel", nullable = false, length = 20)
     private NotificationChannel channel;
 
-    @Column(name = "title", nullable = false, length = 200)
+    @Column(name = "title", length = 255)
     private String title;
+
+    @Column(name = "subject", length = 255)
+    private String subject;
 
     @Column(name = "message", nullable = false, columnDefinition = "TEXT")
     private String message;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
-    private NotificationStatus status;
+    @Builder.Default
+    private NotificationStatus status = NotificationStatus.PENDING;
 
-    @Column(name = "is_read", nullable = false)
-    private Boolean isRead;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "priority", length = 10)
+    @Builder.Default
+    private NotificationPriority priority = NotificationPriority.NORMAL;
 
-    @Column(name = "read_at")
-    private LocalDateTime readAt;
+    @Column(name = "is_read")
+    @Builder.Default
+    private Boolean isRead = false;
+
+    @Column(name = "reference_type", length = 50)
+    private String referenceType;
+
+    @Column(name = "reference_id", length = 36)
+    private String referenceId;
 
     @Column(name = "sent_at")
     private LocalDateTime sentAt;
 
-    @Column(name = "failed_at")
-    private LocalDateTime failedAt;
+    @Column(name = "read_at")
+    private LocalDateTime readAt;
 
     @Column(name = "failure_reason", columnDefinition = "TEXT")
     private String failureReason;
 
-    @Column(name = "retry_count", nullable = false)
-    private Integer retryCount;
-
-    @Column(name = "event_id", length = 100)
-    private String eventId;
-
-    @Column(name = "event_type", length = 50)
-    private String eventType;
-
-    @Column(name = "reference_id")
-    private UUID referenceId; // Transaction ID, Payment ID, etc.
-
-    @Column(name = "reference_type", length = 50)
-    private String referenceType; // TRANSACTION, PAYMENT, ACCOUNT, etc.
-
-    @Column(name = "metadata", columnDefinition = "TEXT")
-    private String metadata; // JSON metadata
+    @Column(name = "retry_count")
+    @Builder.Default
+    private Integer retryCount = 0;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -94,17 +91,21 @@ public class Notification {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
+        createdAt = now;
+        updatedAt = now;
         
         if (status == null) {
             status = NotificationStatus.PENDING;
         }
-        if (isRead == null) {
-            isRead = false;
+        if (priority == null) {
+            priority = NotificationPriority.NORMAL;
         }
         if (retryCount == null) {
             retryCount = 0;
+        }
+        if (isRead == null) {
+            isRead = false;
         }
     }
 
@@ -113,91 +114,93 @@ public class Notification {
         updatedAt = LocalDateTime.now();
     }
 
-    /**
-     * Check if notification is pending
-     */
     public boolean isPending() {
         return status == NotificationStatus.PENDING;
     }
 
-    /**
-     * Check if notification is sent
-     */
     public boolean isSent() {
         return status == NotificationStatus.SENT;
     }
 
-    /**
-     * Check if notification failed
-     */
     public boolean isFailed() {
         return status == NotificationStatus.FAILED;
     }
 
-    /**
-     * Mark notification as sent
-     */
     public void markAsSent() {
         this.status = NotificationStatus.SENT;
         this.sentAt = LocalDateTime.now();
     }
 
-    /**
-     * Mark notification as failed
-     */
-    public void markAsFailed(String reason) {
-        this.status = NotificationStatus.FAILED;
-        this.failureReason = reason;
-        this.failedAt = LocalDateTime.now();
-        this.retryCount++;
+    public void markAsDelivered() {
+        this.status = NotificationStatus.DELIVERED;
     }
 
-    /**
-     * Mark notification as read
-     */
     public void markAsRead() {
+        this.status = NotificationStatus.READ;
         this.isRead = true;
         this.readAt = LocalDateTime.now();
     }
 
+    public void markAsFailed(String reason) {
+        this.status = NotificationStatus.FAILED;
+        this.failureReason = reason;
+        this.retryCount++;
+    }
+
     /**
-     * Notification Type Enum
+     * Notification Type - Extended for all use cases
      */
     public enum NotificationType {
+        // Account notifications
         ACCOUNT_CREATED,
         ACCOUNT_UPDATED,
         ACCOUNT_CLOSED,
+        ACCOUNT,
+        
+        // Balance notifications
+        BALANCE_UPDATED,
+        BALANCE_LOW,
+        
+        // Transaction notifications
         TRANSACTION_COMPLETED,
         TRANSACTION_FAILED,
+        TRANSACTION,
+        
+        // Payment notifications
+        PAYMENT_SCHEDULED,
         PAYMENT_COMPLETED,
         PAYMENT_FAILED,
-        PAYMENT_SCHEDULED,
-        BALANCE_LOW,
-        BALANCE_UPDATED,
-        KYC_VERIFIED,
-        KYC_REJECTED,
-        LOGIN_ALERT,
+        PAYMENT,
+        
+        // Security notifications
         SECURITY_ALERT,
-        GENERAL
+        SECURITY,
+        
+        // Other
+        MARKETING,
+        SYSTEM,
+        ALERT
     }
 
-    /**
-     * Notification Channel Enum
-     */
     public enum NotificationChannel {
-        EMAIL,      // Email notification
-        SMS,        // SMS notification
-        PUSH,       // Push notification (mobile/web)
-        IN_APP      // In-app notification
+        EMAIL,
+        SMS,
+        PUSH,
+        IN_APP
     }
 
-    /**
-     * Notification Status Enum
-     */
     public enum NotificationStatus {
-        PENDING,    // Notification created, waiting to be sent
-        SENT,       // Notification sent successfully
-        FAILED,     // Notification failed to send
-        CANCELLED   // Notification cancelled
+        PENDING,
+        SENT,
+        DELIVERED,
+        READ,
+        FAILED
+    }
+
+    public enum NotificationPriority {
+        LOW,
+        NORMAL,
+        HIGH,
+        URGENT
     }
 }

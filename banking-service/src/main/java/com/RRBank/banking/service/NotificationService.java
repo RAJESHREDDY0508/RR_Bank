@@ -6,6 +6,8 @@ import com.RRBank.banking.exception.ResourceNotFoundException;
 import com.RRBank.banking.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,11 +43,10 @@ public class NotificationService {
             String message,
             UUID referenceId,
             String referenceType) {
-        
-        log.info("Creating notification for user: {}, type: {}, channel: {}", 
+
+        log.info("Creating notification for user: {}, type: {}, channel: {}",
                 userId, notificationType, channel);
 
-        // Create notification record
         Notification notification = Notification.builder()
                 .userId(userId)
                 .notificationType(notificationType)
@@ -55,13 +56,12 @@ public class NotificationService {
                 .status(Notification.NotificationStatus.PENDING)
                 .isRead(false)
                 .retryCount(0)
-                .referenceId(referenceId)
+                .referenceId(referenceId != null ? referenceId.toString() : null)
                 .referenceType(referenceType)
                 .build();
 
         notification = notificationRepository.save(notification);
 
-        // Send notification
         sendNotification(notification);
     }
 
@@ -77,25 +77,26 @@ public class NotificationService {
         try {
             switch (notification.getChannel()) {
                 case EMAIL -> {
-                    // Get user email - in production, fetch from user service
                     String userEmail = getUserEmail(notification.getUserId());
-                    success = emailService.sendEmail(userEmail, notification.getTitle(), notification.getMessage());
+                    success = emailService.sendEmail(
+                            userEmail,
+                            notification.getTitle(),
+                            notification.getMessage()
+                    );
                 }
                 case SMS -> {
-                    // Get user phone - in production, fetch from user service
                     String userPhone = getUserPhone(notification.getUserId());
                     success = smsService.sendSms(userPhone, notification.getMessage());
                 }
                 case PUSH -> {
-                    // Get device token - in production, fetch from user preferences
                     String deviceToken = getDeviceToken(notification.getUserId());
                     success = pushNotificationService.sendPushNotification(
-                            deviceToken, notification.getTitle(), notification.getMessage());
+                            deviceToken,
+                            notification.getTitle(),
+                            notification.getMessage()
+                    );
                 }
-                case IN_APP -> {
-                    // In-app notifications are just stored in DB
-                    success = true;
-                }
+                case IN_APP -> success = true;
             }
 
             if (success) {
@@ -120,8 +121,9 @@ public class NotificationService {
     @Transactional(readOnly = true)
     public List<NotificationResponseDto> getUserNotifications(UUID userId) {
         log.info("Fetching notifications for userId: {}", userId);
-        
-        return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+
+        return notificationRepository.findByUserIdOrderByCreatedAtDesc(userId)
+                .stream()
                 .map(NotificationResponseDto::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -132,20 +134,25 @@ public class NotificationService {
     @Transactional(readOnly = true)
     public List<NotificationResponseDto> getUnreadNotifications(UUID userId) {
         log.info("Fetching unread notifications for userId: {}", userId);
-        
-        return notificationRepository.findByUserIdAndIsReadFalseOrderByCreatedAtDesc(userId).stream()
+
+        return notificationRepository.findByUserIdAndIsReadFalseOrderByCreatedAtDesc(userId)
+                .stream()
                 .map(NotificationResponseDto::fromEntity)
                 .collect(Collectors.toList());
     }
 
     /**
-     * Get recent notifications
+     * ✅ FIXED: Get recent notifications using Pageable
      */
     @Transactional(readOnly = true)
     public List<NotificationResponseDto> getRecentNotifications(UUID userId, int limit) {
         log.info("Fetching {} recent notifications for userId: {}", limit, userId);
-        
-        return notificationRepository.findRecentNotificationsByUser(userId, limit).stream()
+
+        Pageable pageable = PageRequest.of(0, limit);
+
+        return notificationRepository
+                .findByUserIdOrderByCreatedAtDesc(userId, pageable)
+                .stream()
                 .map(NotificationResponseDto::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -156,14 +163,15 @@ public class NotificationService {
     @Transactional
     public NotificationResponseDto markAsRead(UUID notificationId) {
         log.info("Marking notification as read: {}", notificationId);
-        
+
         Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Notification not found with ID: " + notificationId));
-        
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Notification not found with ID: " + notificationId)
+                );
+
         notification.markAsRead();
         notification = notificationRepository.save(notification);
-        
+
         return NotificationResponseDto.fromEntity(notification);
     }
 
@@ -173,16 +181,16 @@ public class NotificationService {
     @Transactional
     public void markAllAsRead(UUID userId) {
         log.info("Marking all notifications as read for userId: {}", userId);
-        
-        List<Notification> notifications = notificationRepository
-                .findByUserIdAndIsReadFalseOrderByCreatedAtDesc(userId);
-        
+
+        List<Notification> notifications =
+                notificationRepository.findByUserIdAndIsReadFalseOrderByCreatedAtDesc(userId);
+
         notifications.forEach(Notification::markAsRead);
         notificationRepository.saveAll(notifications);
     }
 
     /**
-     * Get unread count for user
+     * Get unread notification count
      */
     @Transactional(readOnly = true)
     public long getUnreadCount(UUID userId) {
@@ -195,37 +203,26 @@ public class NotificationService {
     @Transactional
     public void retryFailedNotifications() {
         log.info("Retrying failed notifications");
-        
-        List<Notification> failedNotifications = notificationRepository
-                .findFailedNotificationsForRetry(3); // Max 3 retries
-        
+
+        List<Notification> failedNotifications =
+                notificationRepository.findFailedNotificationsForRetry(3);
+
         failedNotifications.forEach(this::sendNotification);
     }
 
-    // ========== HELPER METHODS ==========
+    /* ------------------------------------------------------------------
+       Mock helpers (replace with real User/Profile service later)
+       ------------------------------------------------------------------ */
 
-    /**
-     * Get user email - Mock implementation
-     * In production, fetch from Customer/User service
-     */
     private String getUserEmail(UUID userId) {
-        // Mock email - in production, call user service
         return "user-" + userId.toString().substring(0, 8) + "@example.com";
     }
 
-    /**
-     * Get user phone - Mock implementation
-     */
     private String getUserPhone(UUID userId) {
-        // Mock phone - in production, call customer service
         return "+1234567890";
     }
 
-    /**
-     * Get device token - Mock implementation
-     */
     private String getDeviceToken(UUID userId) {
-        // Mock device token - in production, fetch from user preferences
         return "device-token-" + userId.toString().substring(0, 8);
     }
 }

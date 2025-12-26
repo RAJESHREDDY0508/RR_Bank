@@ -38,16 +38,16 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     
     // CORS configuration from application.properties
-    @Value("${cors.allowed-origins}")
+    @Value("${cors.allowed-origins:http://localhost:3000}")
     private String[] allowedOrigins;
     
-    @Value("${cors.allowed-methods}")
+    @Value("${cors.allowed-methods:GET,POST,PUT,DELETE,OPTIONS}")
     private String[] allowedMethods;
     
-    @Value("${cors.allowed-headers}")
+    @Value("${cors.allowed-headers:*}")
     private String allowedHeaders;
     
-    @Value("${cors.allow-credentials}")
+    @Value("${cors.allow-credentials:true}")
     private boolean allowCredentials;
     
     @Bean
@@ -62,6 +62,16 @@ public class SecurityConfig {
                         // Public endpoints - Frontend & Auth
                         .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/images/**").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
+                        
+                        // OpenAPI / Swagger Documentation - Public access for all profiles
+                        .requestMatchers(
+                                "/swagger-ui.html",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
+                                "/v3/api-docs.yaml",
+                                "/swagger-resources/**",
+                                "/webjars/**"
+                        ).permitAll()
                         
                         // ACTUATOR SECURITY
                         // Public: Basic health and info (no sensitive details)

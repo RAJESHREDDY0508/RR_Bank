@@ -1,44 +1,107 @@
 import api from './api';
+import { v4 as uuidv4 } from 'uuid';
 
+// ============================================================
+// AUTH SERVICE - Enhanced with password reset, email verification
+// ============================================================
 export const authService = {
-  // Register new user
   register: async (userData) => {
     const response = await api.post('/auth/register', userData);
-    return response.data;
-  },
-
-  // Login user
-  login: async (credentials) => {
-    const response = await api.post('/auth/login', credentials);
     const { accessToken, refreshToken, ...user } = response.data;
-    
-    // Store tokens and user info
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
     localStorage.setItem('user', JSON.stringify(user));
-    
     return response.data;
   },
 
-  // Logout user
-  logout: () => {
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('refreshToken');
-    localStorage.removeItem('user');
+  login: async (credentials) => {
+    const response = await api.post('/auth/login', credentials);
+    const { accessToken, refreshToken, ...user } = response.data;
+    localStorage.setItem('accessToken', accessToken);
+    localStorage.setItem('refreshToken', refreshToken);
+    localStorage.setItem('user', JSON.stringify(user));
+    return response.data;
   },
 
-  // Get current user
+  logout: async () => {
+    try {
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (refreshToken) {
+        await api.post('/auth/logout', null, {
+          headers: { Authorization: `Bearer ${refreshToken}` }
+        });
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+    }
+  },
+
+  logoutEverywhere: async () => {
+    try {
+      await api.post('/auth/logout-all');
+    } finally {
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+    }
+  },
+
+  forgotPassword: async (email) => {
+    const response = await api.post('/auth/forgot-password', { email });
+    return response.data;
+  },
+
+  resetPassword: async (token, newPassword, confirmPassword) => {
+    const response = await api.post('/auth/reset-password', {
+      token,
+      newPassword,
+      confirmPassword
+    });
+    return response.data;
+  },
+
+  verifyEmail: async (token) => {
+    const response = await api.post(`/auth/verify-email?token=${token}`);
+    return response.data;
+  },
+
+  resendVerification: async (email) => {
+    const response = await api.post(`/auth/resend-verification?email=${email}`);
+    return response.data;
+  },
+
   getCurrentUser: () => {
     const userStr = localStorage.getItem('user');
     return userStr ? JSON.parse(userStr) : null;
   },
 
-  // Check if user is authenticated
   isAuthenticated: () => {
     return !!localStorage.getItem('accessToken');
   },
+
+  isAdmin: () => {
+    const user = authService.getCurrentUser();
+    return user?.role === 'ADMIN' || user?.role === 'MANAGER';
+  },
+
+  getLoginHistory: async (limit = 10) => {
+    const response = await api.get(`/auth/login-history?limit=${limit}`);
+    return response.data;
+  },
+
+  getActiveSessions: async () => {
+    const response = await api.get('/auth/sessions');
+    return response.data;
+  }
 };
 
+// ============================================================
+// ACCOUNT SERVICE - Enhanced with account requests, ledger balance
+// ============================================================
 export const accountService = {
   // Get all accounts for current user
   getAccounts: async () => {
@@ -46,43 +109,87 @@ export const accountService = {
     return response.data;
   },
 
-  // Get account by account number
-  getAccountByNumber: async (accountNumber) => {
-    const response = await api.get(`/accounts/${accountNumber}`);
+  // Get account by ID
+  getAccountById: async (accountId) => {
+    const response = await api.get(`/accounts/${accountId}`);
     return response.data;
   },
 
-  // Get account balance
-  getBalance: async (accountNumber) => {
-    const response = await api.get(`/accounts/${accountNumber}/balance`);
+  // Get account balance from ledger (source of truth)
+  getBalance: async (accountId) => {
+    const response = await api.get(`/accounts/${accountId}/balance`);
     return response.data;
   },
 
-  // Deposit money
-  deposit: async (accountNumber, amount) => {
-    const response = await api.post(`/accounts/${accountNumber}/deposit`, { amount });
-    return response.data;
-  },
-
-  // Withdraw money
-  withdraw: async (accountNumber, amount) => {
-    const response = await api.post(`/accounts/${accountNumber}/withdraw`, { amount });
-    return response.data;
-  },
-};
-
-export const transactionService = {
-  // Get transactions for an account
-  getTransactions: async (accountNumber, page = 0, size = 10) => {
-    const response = await api.get(`/transactions/account/${accountNumber}`, {
-      params: { page, size },
+  // Request to open new account (goes to admin approval)
+  requestAccount: async (accountType, initialDeposit = 0, currency = 'USD', notes = '') => {
+    const response = await api.post('/accounts', {
+      accountType,
+      initialDeposit,
+      currency,
+      notes
     });
     return response.data;
   },
 
-  // Transfer money
-  transfer: async (transferData) => {
-    const response = await api.post('/transactions/transfer', transferData);
+  // Get user's account requests
+  getMyRequests: async () => {
+    const response = await api.get('/accounts/requests');
+    return response.data;
+  },
+
+  // Cancel pending account request
+  cancelRequest: async (requestId) => {
+    const response = await api.delete(`/accounts/requests/${requestId}`);
+    return response.data;
+  },
+
+  // Close account (balance must be zero)
+  closeAccount: async (accountId) => {
+    const response = await api.patch(`/accounts/${accountId}/close`);
+    return response.data;
+  }
+};
+
+// ============================================================
+// TRANSACTION SERVICE - Enhanced with ledger, idempotency, limits
+// ============================================================
+export const transactionService = {
+  // Deposit money (with idempotency)
+  deposit: async (accountId, amount, description = '') => {
+    const idempotencyKey = uuidv4();
+    const response = await api.post('/transactions/deposit', 
+      { accountId, amount, description },
+      { headers: { 'Idempotency-Key': idempotencyKey } }
+    );
+    return response.data;
+  },
+
+  // Withdraw money (with idempotency)
+  withdraw: async (accountId, amount, description = '') => {
+    const idempotencyKey = uuidv4();
+    const response = await api.post('/transactions/withdraw',
+      { accountId, amount, description },
+      { headers: { 'Idempotency-Key': idempotencyKey } }
+    );
+    return response.data;
+  },
+
+  // Transfer money (with idempotency)
+  transfer: async (fromAccountId, toAccountId, amount, description = '') => {
+    const idempotencyKey = uuidv4();
+    const response = await api.post('/transactions/transfer',
+      { fromAccountId, toAccountId, amount, description },
+      { headers: { 'Idempotency-Key': idempotencyKey } }
+    );
+    return response.data;
+  },
+
+  // Get transactions for account (paginated)
+  getTransactions: async (accountId, page = 0, size = 20) => {
+    const response = await api.get('/transactions', {
+      params: { accountId, page, size }
+    });
     return response.data;
   },
 
@@ -91,4 +198,197 @@ export const transactionService = {
     const response = await api.get(`/transactions/${transactionId}`);
     return response.data;
   },
+
+  // Get recent transactions
+  getRecentTransactions: async (accountId, limit = 10) => {
+    const response = await api.get('/transactions/recent', {
+      params: { accountId, limit }
+    });
+    return response.data;
+  },
+
+  // Get transaction statistics
+  getStats: async (accountId) => {
+    const response = await api.get('/transactions/stats', {
+      params: { accountId }
+    });
+    return response.data;
+  },
+
+  // Get ledger entries for account
+  getLedgerEntries: async (accountId, page = 0, size = 50) => {
+    const response = await api.get('/transactions/ledger', {
+      params: { accountId, page, size }
+    });
+    return response.data;
+  },
+
+  // Get user's transaction limits
+  getLimits: async () => {
+    const response = await api.get('/transactions/limits');
+    return response.data;
+  },
+
+  // Search transactions
+  searchTransactions: async (filters, page = 0, size = 20) => {
+    const response = await api.post('/transactions/search', filters, {
+      params: { page, size }
+    });
+    return response.data;
+  }
+};
+
+// ============================================================
+// ADMIN SERVICE - Account requests, fraud queue, user management
+// ============================================================
+export const adminService = {
+  // Dashboard stats
+  getDashboard: async () => {
+    const response = await api.get('/admin/dashboard');
+    return response.data;
+  },
+
+  // ---- Account Requests ----
+  getPendingRequests: async (page = 0, size = 20) => {
+    const response = await api.get('/admin/account-requests', {
+      params: { page, size }
+    });
+    return response.data;
+  },
+
+  getPendingRequestsCount: async () => {
+    const response = await api.get('/admin/account-requests/count');
+    return response.data;
+  },
+
+  approveAccountRequest: async (requestId, notes = '') => {
+    const response = await api.post(`/admin/account-requests/${requestId}/approve`, { notes });
+    return response.data;
+  },
+
+  rejectAccountRequest: async (requestId, notes) => {
+    const response = await api.post(`/admin/account-requests/${requestId}/reject`, { notes });
+    return response.data;
+  },
+
+  // ---- Fraud Management ----
+  getFraudQueue: async (page = 0, size = 20) => {
+    const response = await api.get('/admin/fraud/queue', {
+      params: { page, size }
+    });
+    return response.data;
+  },
+
+  approveFraudEvent: async (eventId, notes = '') => {
+    const response = await api.post(`/admin/fraud/${eventId}/approve`, { notes });
+    return response.data;
+  },
+
+  rejectFraudEvent: async (eventId, notes) => {
+    const response = await api.post(`/admin/fraud/${eventId}/reject`, { notes });
+    return response.data;
+  },
+
+  getFraudStats: async () => {
+    const response = await api.get('/admin/fraud/stats');
+    return response.data;
+  },
+
+  // ---- User Limits ----
+  getUserLimits: async (userId) => {
+    const response = await api.get(`/admin/users/${userId}/limits`);
+    return response.data;
+  },
+
+  updateUserLimits: async (userId, limitType, dailyLimit, perTransactionLimit, monthlyLimit) => {
+    const response = await api.put(`/admin/users/${userId}/limits`, null, {
+      params: { limitType, dailyLimit, perTransactionLimit, monthlyLimit }
+    });
+    return response.data;
+  }
+};
+
+// ============================================================
+// CUSTOMER SERVICE
+// ============================================================
+export const customerService = {
+  getProfile: async () => {
+    const response = await api.get('/customers/profile');
+    return response.data;
+  },
+
+  updateProfile: async (profileData) => {
+    const response = await api.put('/customers/profile', profileData);
+    return response.data;
+  },
+
+  getCustomerById: async (customerId) => {
+    const response = await api.get(`/customers/${customerId}`);
+    return response.data;
+  }
+};
+
+// ============================================================
+// NOTIFICATION SERVICE
+// ============================================================
+export const notificationService = {
+  getNotifications: async (page = 0, size = 20) => {
+    const response = await api.get('/notifications', {
+      params: { page, size }
+    });
+    return response.data;
+  },
+
+  getUnreadCount: async () => {
+    const response = await api.get('/notifications/unread/count');
+    return response.data;
+  },
+
+  markAsRead: async (notificationId) => {
+    const response = await api.put(`/notifications/${notificationId}/read`);
+    return response.data;
+  },
+
+  markAllAsRead: async () => {
+    const response = await api.put('/notifications/read-all');
+    return response.data;
+  }
+};
+
+// ============================================================
+// STATEMENT SERVICE
+// ============================================================
+export const statementService = {
+  getStatements: async (accountId, page = 0, size = 12) => {
+    const response = await api.get(`/statements/account/${accountId}`, {
+      params: { page, size }
+    });
+    return response.data;
+  },
+
+  downloadStatement: async (statementId) => {
+    const response = await api.get(`/statements/${statementId}/download`, {
+      responseType: 'blob'
+    });
+    return response.data;
+  },
+
+  generateStatement: async (accountId, startDate, endDate) => {
+    const response = await api.post('/statements/generate', {
+      accountId,
+      startDate,
+      endDate
+    });
+    return response.data;
+  }
+};
+
+export default {
+  authService,
+  accountService,
+  transactionService,
+  adminService,
+  customerService,
+  notificationService,
+  statementService
 };

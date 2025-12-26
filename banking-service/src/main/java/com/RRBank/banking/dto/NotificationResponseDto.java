@@ -11,7 +11,6 @@ import java.util.UUID;
 
 /**
  * Notification Response DTO
- * Used for API responses
  */
 @Data
 @NoArgsConstructor
@@ -31,13 +30,10 @@ public class NotificationResponseDto {
     private LocalDateTime sentAt;
     private String failureReason;
     private Integer retryCount;
-    private UUID referenceId;
+    private String referenceId;
     private String referenceType;
     private LocalDateTime createdAt;
 
-    /**
-     * Convert Notification entity to NotificationResponseDto
-     */
     public static NotificationResponseDto fromEntity(Notification notification) {
         return NotificationResponseDto.builder()
                 .id(notification.getId())

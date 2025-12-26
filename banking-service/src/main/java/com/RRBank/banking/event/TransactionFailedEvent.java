@@ -19,19 +19,33 @@ import java.util.UUID;
 @Builder
 public class TransactionFailedEvent {
 
+    // Core identifiers
     private UUID transactionId;
     private String transactionReference;
+
+    // Account relationships
     private UUID fromAccountId;
     private UUID toAccountId;
-    private UUID accountId; // Primary account (for audit compatibility)
+
+    // Primary account (used by AuditEventsConsumer)
+    private UUID accountId;
+
+    // Transaction details
     private String transactionType;
     private BigDecimal amount;
     private String currency;
+
+    // Failure details
     private String failureReason;
-    private String reason; // Alias for failureReason (for audit compatibility)
-    private String status; // For audit compatibility
+
+    // Required by AuditEventsConsumer
+    private String reason;
+    private String status;
+
+    // Timestamp
     private LocalDateTime failedAt;
-    
+
+    // Event metadata
     @Builder.Default
     private String eventType = "TRANSACTION_FAILED";
 }

@@ -14,11 +14,13 @@ import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 
-// 🔥 Lazy-loaded pages
+// Lazy-loaded pages
 const Dashboard = React.lazy(() => import("./pages/Dashboard"));
 const Accounts = React.lazy(() => import("./pages/Accounts"));
 const Transfer = React.lazy(() => import("./pages/Transfer"));
 const Transactions = React.lazy(() => import("./pages/Transactions"));
+const ForgotPassword = React.lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = React.lazy(() => import("./pages/ResetPassword"));
 
 function App() {
   return (
@@ -30,6 +32,8 @@ function App() {
               <Route path="/" element={<Landing />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
 
               <Route
                 path="/dashboard"
@@ -50,6 +54,15 @@ function App() {
               />
 
               <Route
+                path="/accounts/:accountId"
+                element={
+                  <PrivateRoute>
+                    <Accounts />
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
                 path="/transfer"
                 element={
                   <PrivateRoute>
@@ -59,7 +72,25 @@ function App() {
               />
 
               <Route
+                path="/deposit"
+                element={
+                  <PrivateRoute>
+                    <Transfer />
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
                 path="/transactions"
+                element={
+                  <PrivateRoute>
+                    <Transactions />
+                  </PrivateRoute>
+                }
+              />
+
+              <Route
+                path="/transactions/:accountId"
                 element={
                   <PrivateRoute>
                     <Transactions />

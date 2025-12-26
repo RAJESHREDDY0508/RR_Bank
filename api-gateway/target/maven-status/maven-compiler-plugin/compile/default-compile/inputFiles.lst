@@ -1,8 +1,6 @@
 C:\Users\rajes\Desktop\projects\RR-Bank\api-gateway\src\main\java\com\rrbank\gateway\GatewayCorsConfiguration.java
-C:\Users\rajes\Desktop\projects\RR-Bank\api-gateway\src\main\java\com\rrbank\gateway\GatewayJwtValidationFilter.java
-C:\Users\rajes\Desktop\projects\RR-Bank\api-gateway\src\main\java\com\rrbank\gateway\GatewayLoggingFilter.java
 C:\Users\rajes\Desktop\projects\RR-Bank\api-gateway\src\main\java\com\rrbank\gateway\GatewayMonitoringController.java
-C:\Users\rajes\Desktop\projects\RR-Bank\api-gateway\src\main\java\com\rrbank\gateway\GatewayRateLimitingFilter.java
 C:\Users\rajes\Desktop\projects\RR-Bank\api-gateway\src\main\java\com\rrbank\gateway\GatewayResilienceConfiguration.java
 C:\Users\rajes\Desktop\projects\RR-Bank\api-gateway\src\main\java\com\rrbank\gateway\GatewayResilienceService.java
 C:\Users\rajes\Desktop\projects\RR-Bank\api-gateway\src\main\java\com\rrbank\gateway\GatewayRouteConfiguration.java
+C:\Users\rajes\Desktop\projects\RR-Bank\api-gateway\src\main\java\com\rrbank\gateway\JwtAuthGatewayFilter.java

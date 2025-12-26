@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Drawer,
@@ -8,7 +8,7 @@ import {
   ListItemIcon,
   ListItemText,
   Box,
-  Divider,
+  Badge,
   useTheme,
   useMediaQuery,
 } from '@mui/material';
@@ -23,31 +23,51 @@ import {
   History,
   AdminPanelSettings,
   Settings,
+  PendingActions,
 } from '@mui/icons-material';
+import { accountRequestsApi } from '../../api/accountRequests';
 
 interface SidebarProps {
   open: boolean;
   onClose: () => void;
 }
 
-const menuItems = [
-  { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
-  { text: 'Customers', icon: <People />, path: '/customers' },
-  { text: 'Accounts', icon: <AccountBalance />, path: '/accounts' },
-  { text: 'Transactions', icon: <Receipt />, path: '/transactions' },
-  { text: 'Payments', icon: <Payment />, path: '/payments' },
-  { text: 'Fraud Alerts', icon: <Warning />, path: '/fraud-alerts', badge: 3 },
-  { text: 'Statements', icon: <Description />, path: '/statements' },
-  { text: 'Audit Logs', icon: <History />, path: '/audit-logs' },
-  { text: 'Admin Users', icon: <AdminPanelSettings />, path: '/users' },
-  { text: 'Settings', icon: <Settings />, path: '/settings' },
-];
-
 const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      try {
+        const data = await accountRequestsApi.getPendingCount();
+        setPendingRequestsCount(data.pendingCount);
+      } catch (err) {
+        console.error('Failed to fetch pending count:', err);
+      }
+    };
+    fetchPendingCount();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchPendingCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const menuItems = [
+    { text: 'Dashboard', icon: <Dashboard />, path: '/dashboard' },
+    { text: 'Customers', icon: <People />, path: '/customers' },
+    { text: 'Accounts', icon: <AccountBalance />, path: '/accounts' },
+    { text: 'Account Requests', icon: <PendingActions />, path: '/account-requests', badge: pendingRequestsCount },
+    { text: 'Transactions', icon: <Receipt />, path: '/transactions' },
+    { text: 'Payments', icon: <Payment />, path: '/payments' },
+    { text: 'Fraud Alerts', icon: <Warning />, path: '/fraud-alerts' },
+    { text: 'Statements', icon: <Description />, path: '/statements' },
+    { text: 'Audit Logs', icon: <History />, path: '/audit-logs' },
+    { text: 'Admin Users', icon: <AdminPanelSettings />, path: '/users' },
+    { text: 'Settings', icon: <Settings />, path: '/settings' },
+  ];
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -84,27 +104,15 @@ const Sidebar: React.FC<SidebarProps> = ({ open, onClose }) => {
                     : 'inherit',
                 }}
               >
-                {item.icon}
+                {item.badge && item.badge > 0 ? (
+                  <Badge badgeContent={item.badge} color="error">
+                    {item.icon}
+                  </Badge>
+                ) : (
+                  item.icon
+                )}
               </ListItemIcon>
               <ListItemText primary={item.text} />
-              {item.badge && (
-                <Box
-                  sx={{
-                    bgcolor: 'error.main',
-                    color: 'white',
-                    borderRadius: '50%',
-                    width: 24,
-                    height: 24,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '0.75rem',
-                    fontWeight: 'bold',
-                  }}
-                >
-                  {item.badge}
-                </Box>
-              )}
             </ListItemButton>
           </ListItem>
         ))}

@@ -1,0 +1,8 @@
+com\RRBank\banking\gateway\GatewayMonitoringController.class
+com\RRBank\banking\gateway\GatewayCorsConfiguration.class
+com\RRBank\banking\gateway\GatewayResilienceConfiguration.class
+com\RRBank\banking\gateway\GatewayRouteConfiguration$RouteDefinition$RouteDefinitionBuilder.class
+com\RRBank\gateway\GatewayResilienceService.class
+com\RRBank\gateway\JwtAuthGatewayFilter.class
+com\RRBank\banking\gateway\GatewayRouteConfiguration$RouteDefinition.class
+com\RRBank\banking\gateway\GatewayRouteConfiguration.class

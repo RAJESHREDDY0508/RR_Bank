@@ -2,6 +2,7 @@ package com.RRBank.banking.controller;
 
 import com.RRBank.banking.dto.*;
 import com.RRBank.banking.service.AccountService;
+import com.RRBank.banking.service.TransactionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +27,7 @@ import java.util.UUID;
 public class AccountController {
 
     private final AccountService accountService;
+    private final TransactionService transactionService;
 
     /**
      * Create new bank account
@@ -38,6 +40,56 @@ public class AccountController {
         log.info("REST request to create account for customerId: {}", dto.getCustomerId());
         AccountResponseDto response = accountService.createAccount(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * Deposit money to account
+     * POST /api/accounts/{accountId}/deposit
+     */
+    @PostMapping("/{accountId}/deposit")
+    @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
+    public ResponseEntity<TransactionResponseDto> deposit(
+            @PathVariable UUID accountId,
+            @Valid @RequestBody DepositRequest request,
+            Authentication authentication) {
+        log.info("REST request to deposit {} to accountId: {}", request.getAmount(), accountId);
+        
+        UUID initiatedBy = extractUserId(authentication);
+        
+        TransactionResponseDto response = transactionService.deposit(
+                accountId,
+                request.getAmount(),
+                request.getDescription(),
+                null, // No idempotency key from this endpoint
+                initiatedBy
+        );
+        
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Withdraw money from account
+     * POST /api/accounts/{accountId}/withdraw
+     */
+    @PostMapping("/{accountId}/withdraw")
+    @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
+    public ResponseEntity<TransactionResponseDto> withdraw(
+            @PathVariable UUID accountId,
+            @Valid @RequestBody WithdrawRequest request,
+            Authentication authentication) {
+        log.info("REST request to withdraw {} from accountId: {}", request.getAmount(), accountId);
+        
+        UUID initiatedBy = extractUserId(authentication);
+        
+        TransactionResponseDto response = transactionService.withdraw(
+                accountId,
+                request.getAmount(),
+                request.getDescription(),
+                null, // No idempotency key from this endpoint
+                initiatedBy
+        );
+        
+        return ResponseEntity.ok(response);
     }
 
     /**
@@ -186,5 +238,19 @@ public class AccountController {
         log.info("REST request to delete account with ID: {}", id);
         accountService.deleteAccount(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // ========== HELPER METHODS ==========
+
+    private UUID extractUserId(Authentication authentication) {
+        if (authentication == null || authentication.getName() == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(authentication.getName());
+        } catch (IllegalArgumentException e) {
+            log.warn("Could not parse user ID from authentication: {}", authentication.getName());
+            return null;
+        }
     }
 }

@@ -11,8 +11,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
- * Fraud Rule Entity
- * Represents configurable fraud detection rules
+ * Fraud Rule Entity - Configurable fraud detection rules
  */
 @Entity
 @Table(name = "fraud_rules", indexes = {
@@ -28,25 +27,26 @@ public class FraudRule {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(name = "id", updatable = false, nullable = false)
     private UUID id;
 
     @Column(name = "rule_name", nullable = false, unique = true, length = 100)
     private String ruleName;
 
+    @Column(name = "rule_description", columnDefinition = "TEXT")
+    private String ruleDescription;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "rule_type", nullable = false, length = 50)
     private RuleType ruleType;
 
-    @Column(name = "rule_description", columnDefinition = "TEXT")
-    private String ruleDescription;
-
     @Column(name = "description", columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "threshold_amount", precision = 15, scale = 2)
+    @Column(name = "threshold_amount", precision = 19, scale = 4)
     private BigDecimal thresholdAmount;
 
-    @Column(name = "threshold_value", precision = 15, scale = 2)
+    @Column(name = "threshold_value", precision = 19, scale = 4)
     private BigDecimal thresholdValue;
 
     @Column(name = "time_window_minutes")
@@ -82,12 +82,6 @@ public class FraudRule {
     @Builder.Default
     private Integer priority = 0;
 
-    @Column(name = "created_by")
-    private UUID createdBy;
-
-    @Column(name = "updated_by")
-    private UUID updatedBy;
-
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
@@ -96,14 +90,16 @@ public class FraudRule {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
+        createdAt = now;
+        updatedAt = now;
+        
         if (enabled == null) enabled = true;
         if (isEnabled == null) isEnabled = true;
+        if (autoBlock == null) autoBlock = false;
         if (priority == null) priority = 0;
         if (riskScoreWeight == null) riskScoreWeight = BigDecimal.ONE;
         if (riskScorePoints == null) riskScorePoints = 10;
-        if (autoBlock == null) autoBlock = false;
     }
 
     @PreUpdate
@@ -111,40 +107,27 @@ public class FraudRule {
         updatedAt = LocalDateTime.now();
     }
 
-    /**
-     * Fraud Rule Type Enum
-     */
-    public enum RuleType {
-        HIGH_AMOUNT,           // Transaction exceeds threshold
-        TRANSACTION_VELOCITY,  // Too many transactions in time window
-        UNUSUAL_LOCATION,      // Transaction from unusual location
-        AMOUNT_SPIKE,          // Sudden increase in transaction amounts
-        OFF_HOURS,             // Transactions outside normal hours
-        ROUND_AMOUNT,          // Suspiciously round amounts
-        FOREIGN_TRANSACTION,   // International transactions
-        BLACKLISTED_LOCATION,  // Transaction from blacklisted country
-        RAPID_SUCCESSION,      // Multiple transactions in quick succession
-        AMOUNT_THRESHOLD,      // Generic threshold rule
-        FREQUENCY,             // Frequency-based rule
-        LOCATION,              // Location-based rule
-        TIME,                  // Time-based rule
-        DUPLICATE,             // Duplicate detection
-        PATTERN,               // Pattern matching
-        GEOGRAPHY,             // Geographic rule
-        VELOCITY               // Velocity rule
-    }
-
-    /**
-     * Check if rule is active
-     */
     public boolean isActive() {
         return Boolean.TRUE.equals(enabled) || Boolean.TRUE.equals(isEnabled);
     }
 
-    /**
-     * Check if should auto-block
-     */
-    public boolean shouldAutoBlock() {
-        return Boolean.TRUE.equals(autoBlock);
+    public enum RuleType {
+        AMOUNT_THRESHOLD,
+        FREQUENCY,
+        LOCATION,
+        TIME,
+        DUPLICATE,
+        PATTERN,
+        GEOGRAPHY,
+        VELOCITY,
+        HIGH_AMOUNT,
+        TRANSACTION_VELOCITY,
+        UNUSUAL_LOCATION,
+        AMOUNT_SPIKE,
+        OFF_HOURS,
+        ROUND_AMOUNT,
+        FOREIGN_TRANSACTION,
+        BLACKLISTED_LOCATION,
+        RAPID_SUCCESSION
     }
 }

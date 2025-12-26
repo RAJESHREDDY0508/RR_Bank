@@ -14,7 +14,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -50,17 +49,242 @@ public class TransactionService {
         this.referenceGenerator = referenceGenerator;
     }
 
+    // ========== DEPOSIT API ==========
+
     /**
-     * Transfer money between accounts (Saga Pattern) This implements a
-     * distributed transaction pattern with compensating actions
-     *
-     * Supports:
-     * - TRANSFER: Both fromAccountId and toAccountId required
-     * - DEPOSIT: Only toAccountId required (fromAccountId = null)
-     * - WITHDRAWAL: Only fromAccountId required (toAccountId = null)
-     *
-     * ✅ FIX: Uses pessimistic locking instead of SERIALIZABLE isolation for
-     * better performance
+     * Deposit money to an account
+     * POST /api/accounts/{accountId}/deposit
+     * 
+     * @param accountId The account to deposit to
+     * @param amount The amount to deposit
+     * @param description Optional description
+     * @param idempotencyKey Optional idempotency key
+     * @param initiatedBy User who initiated the deposit
+     * @return TransactionResponseDto with transaction details
+     */
+    @Transactional
+    public TransactionResponseDto deposit(UUID accountId, BigDecimal amount, String description,
+                                         String idempotencyKey, UUID initiatedBy) {
+        log.info("Processing deposit of {} to accountId: {}", amount, accountId);
+
+        // Validate amount
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Amount must be greater than 0");
+        }
+
+        // Check for duplicate transaction (Idempotency)
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            Transaction existingTransaction = transactionRepository
+                    .findByIdempotencyKey(idempotencyKey)
+                    .orElse(null);
+
+            if (existingTransaction != null) {
+                log.warn("Duplicate deposit detected with idempotency key: {}", idempotencyKey);
+                return TransactionResponseDto.fromEntity(existingTransaction);
+            }
+        }
+
+        // Get account with lock
+        Account account = accountRepository.findByIdWithLock(accountId)
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + accountId));
+
+        // Validate account is active
+        if (!account.isActive()) {
+            throw new IllegalStateException("Cannot deposit to inactive account");
+        }
+
+        // Calculate balances
+        BigDecimal balanceBefore = account.getBalance();
+        BigDecimal balanceAfter = balanceBefore.add(amount);
+
+        // Generate transaction reference
+        String transactionRef = referenceGenerator.generateTransactionReferenceWithType("DEPOSIT");
+
+        // Create transaction record
+        Transaction transaction = Transaction.builder()
+                .transactionReference(transactionRef)
+                .toAccountId(accountId)
+                .toAccountNumber(account.getAccountNumber())
+                .transactionType(Transaction.TransactionType.DEPOSIT)
+                .amount(amount)
+                .currency(account.getCurrency())
+                .status(Transaction.TransactionStatus.COMPLETED)
+                .description(description != null ? description : "Deposit")
+                .idempotencyKey(idempotencyKey)
+                .initiatedBy(initiatedBy)
+                .balanceBefore(balanceBefore)
+                .balanceAfter(balanceAfter)
+                .build();
+
+        transaction.markCompleted();
+        transaction = transactionRepository.save(transaction);
+
+        // Update account balance
+        account.credit(amount);
+        accountRepository.save(account);
+
+        // Update cache
+        cacheService.updateCachedBalance(accountId, account.getBalance());
+
+        log.info("Deposit completed: {} to account {}, balance: {} -> {}",
+                amount, accountId, balanceBefore, balanceAfter);
+
+        // Publish events
+        publishTransactionCompletedEvent(transaction);
+        publishBalanceUpdatedEvent(account, balanceBefore, "CREDIT", transaction.getId().toString());
+
+        return TransactionResponseDto.fromEntity(transaction);
+    }
+
+    // ========== WITHDRAWAL API ==========
+
+    /**
+     * Withdraw money from an account
+     * POST /api/accounts/{accountId}/withdraw
+     * 
+     * @param accountId The account to withdraw from
+     * @param amount The amount to withdraw
+     * @param description Optional description
+     * @param idempotencyKey Optional idempotency key
+     * @param initiatedBy User who initiated the withdrawal
+     * @return TransactionResponseDto with transaction details
+     */
+    @Transactional
+    public TransactionResponseDto withdraw(UUID accountId, BigDecimal amount, String description,
+                                          String idempotencyKey, UUID initiatedBy) {
+        log.info("Processing withdrawal of {} from accountId: {}", amount, accountId);
+
+        // Validate amount
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Amount must be greater than 0");
+        }
+
+        // Check for duplicate transaction (Idempotency)
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            Transaction existingTransaction = transactionRepository
+                    .findByIdempotencyKey(idempotencyKey)
+                    .orElse(null);
+
+            if (existingTransaction != null) {
+                log.warn("Duplicate withdrawal detected with idempotency key: {}", idempotencyKey);
+                return TransactionResponseDto.fromEntity(existingTransaction);
+            }
+        }
+
+        // Get account with lock
+        Account account = accountRepository.findByIdWithLock(accountId)
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + accountId));
+
+        // Validate account is active
+        if (!account.isActive()) {
+            throw new IllegalStateException("Cannot withdraw from inactive account");
+        }
+
+        // Check sufficient balance
+        if (!account.hasSufficientBalance(amount)) {
+            throw new IllegalStateException("Insufficient balance. Available: " + account.getBalance());
+        }
+
+        // Calculate balances
+        BigDecimal balanceBefore = account.getBalance();
+        BigDecimal balanceAfter = balanceBefore.subtract(amount);
+
+        // Generate transaction reference
+        String transactionRef = referenceGenerator.generateTransactionReferenceWithType("WITHDRAWAL");
+
+        // Create transaction record
+        Transaction transaction = Transaction.builder()
+                .transactionReference(transactionRef)
+                .fromAccountId(accountId)
+                .fromAccountNumber(account.getAccountNumber())
+                .transactionType(Transaction.TransactionType.WITHDRAWAL)
+                .amount(amount)
+                .currency(account.getCurrency())
+                .status(Transaction.TransactionStatus.COMPLETED)
+                .description(description != null ? description : "Withdrawal")
+                .idempotencyKey(idempotencyKey)
+                .initiatedBy(initiatedBy)
+                .balanceBefore(balanceBefore)
+                .balanceAfter(balanceAfter)
+                .build();
+
+        transaction.markCompleted();
+        transaction = transactionRepository.save(transaction);
+
+        // Update account balance
+        account.debit(amount);
+        accountRepository.save(account);
+
+        // Update cache
+        cacheService.updateCachedBalance(accountId, account.getBalance());
+
+        log.info("Withdrawal completed: {} from account {}, balance: {} -> {}",
+                amount, accountId, balanceBefore, balanceAfter);
+
+        // Publish events
+        publishTransactionCompletedEvent(transaction);
+        publishBalanceUpdatedEvent(account, balanceBefore, "DEBIT", transaction.getId().toString());
+
+        return TransactionResponseDto.fromEntity(transaction);
+    }
+
+    // ========== INITIAL DEPOSIT (for account creation) ==========
+
+    /**
+     * Create initial deposit transaction for new account
+     * Called when account is created with initial balance > 0
+     * 
+     * @param accountId The newly created account ID
+     * @param amount The initial deposit amount
+     * @param initiatedBy User who created the account
+     * @return TransactionResponseDto with transaction details
+     */
+    @Transactional
+    public TransactionResponseDto createInitialDeposit(UUID accountId, BigDecimal amount, UUID initiatedBy) {
+        log.info("Creating initial deposit of {} for accountId: {}", amount, accountId);
+
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return null; // No initial deposit needed
+        }
+
+        // Get account (already saved, so no lock needed)
+        Account account = accountRepository.findById(accountId)
+                .orElseThrow(() -> new ResourceNotFoundException("Account not found: " + accountId));
+
+        // Generate transaction reference
+        String transactionRef = referenceGenerator.generateTransactionReferenceWithType("DEPOSIT");
+
+        // Create transaction record (balance already set in account creation)
+        Transaction transaction = Transaction.builder()
+                .transactionReference(transactionRef)
+                .toAccountId(accountId)
+                .toAccountNumber(account.getAccountNumber())
+                .transactionType(Transaction.TransactionType.DEPOSIT)
+                .amount(amount)
+                .currency(account.getCurrency())
+                .status(Transaction.TransactionStatus.COMPLETED)
+                .description("Initial Deposit")
+                .initiatedBy(initiatedBy)
+                .balanceBefore(BigDecimal.ZERO)
+                .balanceAfter(amount)
+                .build();
+
+        transaction.markCompleted();
+        transaction = transactionRepository.save(transaction);
+
+        log.info("Initial deposit transaction created: {} for account {}", 
+                transaction.getId(), accountId);
+
+        // Publish event
+        publishTransactionCompletedEvent(transaction);
+
+        return TransactionResponseDto.fromEntity(transaction);
+    }
+
+    // ========== TRANSFER API (existing) ==========
+
+    /**
+     * Transfer money between accounts (Saga Pattern)
      */
     @Transactional
     public TransactionResponseDto transfer(TransferRequestDto request, UUID initiatedBy) {
@@ -171,7 +395,6 @@ public class TransactionService {
 
     /**
      * Execute Saga Transfer (Main Transaction Flow)
-     * Supports TRANSFER, DEPOSIT, and WITHDRAWAL
      */
     private void executeSagaTransfer(Transaction transaction, BigDecimal amount) {
         log.info("Executing saga {} for transaction: {}", 
@@ -182,18 +405,18 @@ public class TransactionService {
         transactionRepository.save(transaction);
 
         switch (transaction.getTransactionType()) {
-            case DEPOSIT -> executeDeposit(transaction, amount);
-            case WITHDRAWAL -> executeWithdrawal(transaction, amount);
-            case TRANSFER -> executeTransfer(transaction, amount);
+            case DEPOSIT -> executeSagaDeposit(transaction, amount);
+            case WITHDRAWAL -> executeSagaWithdrawal(transaction, amount);
+            case TRANSFER -> executeSagaTransferBetweenAccounts(transaction, amount);
             default -> throw new IllegalStateException(
                     "Unsupported transaction type: " + transaction.getTransactionType());
         }
     }
 
     /**
-     * Execute deposit (credit to account)
+     * Execute deposit (credit to account) - Saga version
      */
-    private void executeDeposit(Transaction transaction, BigDecimal amount) {
+    private void executeSagaDeposit(Transaction transaction, BigDecimal amount) {
         Account toAccount = accountRepository.findByIdWithLock(transaction.getToAccountId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "To account not found: " + transaction.getToAccountId()));
@@ -218,9 +441,9 @@ public class TransactionService {
     }
 
     /**
-     * Execute withdrawal (debit from account)
+     * Execute withdrawal (debit from account) - Saga version
      */
-    private void executeWithdrawal(Transaction transaction, BigDecimal amount) {
+    private void executeSagaWithdrawal(Transaction transaction, BigDecimal amount) {
         Account fromAccount = accountRepository.findByIdWithLock(transaction.getFromAccountId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "From account not found: " + transaction.getFromAccountId()));
@@ -251,7 +474,7 @@ public class TransactionService {
     /**
      * Execute transfer (debit from source, credit to destination)
      */
-    private void executeTransfer(Transaction transaction, BigDecimal amount) {
+    private void executeSagaTransferBetweenAccounts(Transaction transaction, BigDecimal amount) {
         // Step 1: Lock and validate FROM account
         Account fromAccount = accountRepository.findByIdWithLock(transaction.getFromAccountId())
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -312,7 +535,6 @@ public class TransactionService {
 
     /**
      * Compensating Transaction (Rollback on Failure)
-     * Handles compensation for TRANSFER, DEPOSIT, and WITHDRAWAL
      */
     private void compensateTransaction(Transaction transaction, String reason) {
         log.warn("Executing compensating transaction for: {}, type: {}, reason: {}", 
@@ -321,7 +543,6 @@ public class TransactionService {
         try {
             switch (transaction.getTransactionType()) {
                 case DEPOSIT -> {
-                    // For deposits, if we credited, we need to debit back
                     if (transaction.getToAccountId() != null) {
                         Account toAccount = accountRepository.findByIdWithLock(transaction.getToAccountId())
                                 .orElse(null);
@@ -338,7 +559,6 @@ public class TransactionService {
                     }
                 }
                 case WITHDRAWAL -> {
-                    // For withdrawals, if we debited, we need to credit back
                     if (transaction.getFromAccountId() != null) {
                         Account fromAccount = accountRepository.findByIdWithLock(transaction.getFromAccountId())
                                 .orElse(null);
@@ -355,8 +575,6 @@ public class TransactionService {
                     }
                 }
                 case TRANSFER -> {
-                    // For transfers, if we've debited the from account but failed to credit the to account,
-                    // we need to refund the from account
                     if (transaction.getFromAccountId() != null) {
                         Account fromAccount = accountRepository.findByIdWithLock(transaction.getFromAccountId())
                                 .orElse(null);
@@ -382,9 +600,10 @@ public class TransactionService {
 
         } catch (Exception e) {
             log.error("Failed to execute compensating transaction for: {}", transaction.getId(), e);
-            // In a real system, this would trigger alerts for manual intervention
         }
     }
+
+    // ========== READ OPERATIONS ==========
 
     /**
      * Get transaction by ID
@@ -424,8 +643,7 @@ public class TransactionService {
     }
 
     /**
-     * Get all transactions for an account (non-paginated - deprecated, use
-     * paginated version)
+     * Get all transactions for an account (non-paginated)
      */
     @Deprecated
     @Transactional(readOnly = true)
@@ -492,7 +710,7 @@ public class TransactionService {
     }
 
     /**
-     * Search transactions with filters (non-paginated - deprecated)
+     * Search transactions with filters (non-paginated)
      */
     @Deprecated
     @Transactional(readOnly = true)
@@ -514,7 +732,6 @@ public class TransactionService {
             transactions = transactionRepository.findAll();
         }
 
-        // Apply additional filters
         return transactions.stream()
                 .filter(t -> filterByStatus(t, searchDto.getStatuses()))
                 .filter(t -> filterByType(t, searchDto.getTypes()))
@@ -536,7 +753,7 @@ public class TransactionService {
     }
 
     /**
-     * Get all transactions (Admin) - non-paginated (deprecated)
+     * Get all transactions (Admin) - non-paginated
      */
     @Deprecated
     @Transactional(readOnly = true)
@@ -561,14 +778,16 @@ public class TransactionService {
 
         return TransactionStatsDto.builder()
                 .accountId(accountId)
-                .totalOutgoing(totalOutgoing)
-                .totalIncoming(totalIncoming)
-                .netAmount(totalIncoming.subtract(totalOutgoing))
+                .totalOutgoing(totalOutgoing != null ? totalOutgoing : BigDecimal.ZERO)
+                .totalIncoming(totalIncoming != null ? totalIncoming : BigDecimal.ZERO)
+                .netAmount((totalIncoming != null ? totalIncoming : BigDecimal.ZERO)
+                        .subtract(totalOutgoing != null ? totalOutgoing : BigDecimal.ZERO))
                 .transactionCount(transactionCount)
                 .build();
     }
 
     // ========== HELPER METHODS ==========
+
     private TransactionResponseDto enrichTransactionResponse(Transaction transaction) {
         TransactionResponseDto dto = TransactionResponseDto.fromEntity(transaction);
 
@@ -619,6 +838,7 @@ public class TransactionService {
     }
 
     // ========== EVENT PUBLISHING ==========
+
     private void publishTransactionInitiatedEvent(Transaction transaction) {
         TransactionInitiatedEvent event = TransactionInitiatedEvent.builder()
                 .transactionId(transaction.getId())
@@ -639,13 +859,19 @@ public class TransactionService {
     }
 
     private void publishTransactionCompletedEvent(Transaction transaction) {
-        // Get updated balances
-        BigDecimal fromBalance = accountRepository.findById(transaction.getFromAccountId())
-                .map(Account::getBalance)
-                .orElse(null);
-        BigDecimal toBalance = accountRepository.findById(transaction.getToAccountId())
-                .map(Account::getBalance)
-                .orElse(null);
+        BigDecimal fromBalance = null;
+        BigDecimal toBalance = null;
+        
+        if (transaction.getFromAccountId() != null) {
+            fromBalance = accountRepository.findById(transaction.getFromAccountId())
+                    .map(Account::getBalance)
+                    .orElse(null);
+        }
+        if (transaction.getToAccountId() != null) {
+            toBalance = accountRepository.findById(transaction.getToAccountId())
+                    .map(Account::getBalance)
+                    .orElse(null);
+        }
 
         TransactionCompletedEvent event = TransactionCompletedEvent.builder()
                 .transactionId(transaction.getId())
@@ -700,8 +926,6 @@ public class TransactionService {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        // This would be published via AccountEventProducer
-        // For now, we'll log it
         log.info("Balance updated for account {}: {} -> {}",
                 account.getId(), oldBalance, account.getBalance());
     }

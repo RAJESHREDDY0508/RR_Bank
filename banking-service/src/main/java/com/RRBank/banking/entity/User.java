@@ -6,19 +6,26 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
- * User entity representing a customer in the banking system
- * Core entity for authentication and user management
+ * User Entity - Authentication and user management
+ * 
+ * IMPORTANT: This entity maps to the 'users' table with user_id as VARCHAR(36)
+ * The ID is generated as UUID string, NOT native PostgreSQL UUID type.
+ * 
+ * Database constraints:
+ * - role: CUSTOMER, ADMIN, TELLER, MANAGER
+ * - status: ACTIVE, INACTIVE, SUSPENDED, LOCKED
  */
 @Entity
 @Table(name = "users", indexes = {
-    @Index(name = "idx_email", columnList = "email"),
-    @Index(name = "idx_username", columnList = "username")
+    @Index(name = "idx_users_email", columnList = "email"),
+    @Index(name = "idx_users_username", columnList = "username"),
+    @Index(name = "idx_users_role", columnList = "role"),
+    @Index(name = "idx_users_status", columnList = "status")
 })
 @Data
 @NoArgsConstructor
@@ -27,8 +34,7 @@ import java.util.List;
 public class User {
     
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "user_id", updatable = false, nullable = false)
+    @Column(name = "user_id", length = 36, updatable = false, nullable = false)
     private String userId;
     
     @Column(name = "username", unique = true, nullable = false, length = 50)
@@ -41,7 +47,7 @@ public class User {
     @Email(message = "Invalid email format")
     private String email;
     
-    @Column(name = "password_hash", nullable = false)
+    @Column(name = "password_hash", nullable = false, length = 255)
     @NotBlank(message = "Password is required")
     private String passwordHash;
     
@@ -76,12 +82,12 @@ public class User {
     private LocalDateTime dateOfBirth;
     
     @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false)
+    @Column(name = "role", nullable = false, length = 20)
     @Builder.Default
     private UserRole role = UserRole.CUSTOMER;
     
     @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
     private UserStatus status = UserStatus.ACTIVE;
     
@@ -110,34 +116,77 @@ public class User {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
     
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @Builder.Default
-    private List<Account> accounts = new ArrayList<>();
-    
     @Version
     @Column(name = "version")
     private Long version;
     
-    // Helper methods
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @Builder.Default
+    private List<Account> accounts = new ArrayList<>();
+    
+    /**
+     * Generate UUID before persist if not set
+     */
+    @PrePersist
+    protected void onCreate() {
+        if (userId == null || userId.isBlank()) {
+            userId = java.util.UUID.randomUUID().toString();
+        }
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+        if (updatedAt == null) {
+            updatedAt = LocalDateTime.now();
+        }
+    }
+    
+    /**
+     * Get full name of user
+     */
     public String getFullName() {
         return firstName + " " + lastName;
     }
     
+    /**
+     * Check if account is currently locked
+     */
     public boolean isAccountLocked() {
         return accountLockedUntil != null && LocalDateTime.now().isBefore(accountLockedUntil);
     }
     
-    public enum UserRole {
-        CUSTOMER,
-        ADMIN,
-        MANAGER,
-        SUPPORT
+    /**
+     * Check if user is admin
+     */
+    public boolean isAdmin() {
+        return role == UserRole.ADMIN;
     }
     
+    /**
+     * Check if user is active
+     */
+    public boolean isActive() {
+        return status == UserStatus.ACTIVE;
+    }
+    
+    /**
+     * User roles - MUST match database constraint
+     * Database: CHECK (role IN ('CUSTOMER', 'ADMIN', 'TELLER', 'MANAGER'))
+     */
+    public enum UserRole {
+        CUSTOMER,   // Regular bank customer
+        ADMIN,      // System administrator
+        TELLER,     // Bank teller
+        MANAGER     // Branch manager
+    }
+    
+    /**
+     * User status - MUST match database constraint
+     * Database: CHECK (status IN ('ACTIVE', 'INACTIVE', 'SUSPENDED', 'LOCKED'))
+     */
     public enum UserStatus {
-        ACTIVE,
-        INACTIVE,
-        SUSPENDED,
-        CLOSED
+        ACTIVE,     // User is active and can login
+        INACTIVE,   // User is inactive (self-deactivated)
+        SUSPENDED,  // User is suspended by admin
+        LOCKED      // User is locked due to failed attempts
     }
 }

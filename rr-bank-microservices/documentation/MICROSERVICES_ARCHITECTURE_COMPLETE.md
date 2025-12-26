@@ -9,19 +9,19 @@
 
 Based on analysis of your RR-Bank application, I've identified:
 
-### **Core Domains:**
-1. **Authentication & Authorization** - JWT, OAuth2, user login/register
-2. **User Management** - User profiles, roles (CUSTOMER, ADMIN, MANAGER)
-3. **Account Management** - CRUD, account types (SAVINGS, CHECKING, CREDIT, LOAN)
-4. **Transaction Processing** - Transfers, deposits, withdrawals
-5. **Payment Processing** - Bill payments, scheduled/recurring payments
-6. **Statement Generation** - PDF statements, transaction history
-7. **Notification System** - Email, SMS, push notifications
-8. **Audit & Logging** - Transaction audit, compliance logs
-9. **Fraud Detection** - Transaction monitoring, risk assessment
-10. **Admin Operations** - User management, reports, monitoring
+### Core Domains:
+1. Authentication & Authorization - JWT, OAuth2, user login/register
+2. User Management - User profiles, roles (CUSTOMER, ADMIN, MANAGER)
+3. Account Management - CRUD, account types (SAVINGS, CHECKING, CREDIT, LOAN)
+4. Transaction Processing - Transfers, deposits, withdrawals
+5. Payment Processing - Bill payments, scheduled/recurring payments
+6. Statement Generation - PDF statements, transaction history
+7. Notification System - Email, SMS, push notifications
+8. Audit & Logging - Transaction audit, compliance logs
+9. Fraud Detection - Transaction monitoring, risk assessment
+10. Admin Operations - User management, reports, monitoring
 
-### **Technical Components Identified:**
+### Technical Components Identified:
 - Spring Boot application
 - PostgreSQL/H2 database
 - Kafka for messaging
@@ -38,100 +38,100 @@ Based on analysis of your RR-Bank application, I've identified:
 
 ## 🎯 Final Microservices Architecture (14 Services)
 
-### **Core Business Services (10):**
+### Core Business Services (10):
 
-1. **auth-service** (Port: 8081)
+1. auth-service (Port: 8081)
    - User authentication & authorization
    - JWT token generation/validation
    - OAuth2 integration
    - Password management
    - Session management
 
-2. **user-service** (Port: 8082)
+2. user-service (Port: 8082)
    - User profile management
    - KYC verification
    - User preferences
    - Role management
    - User search
 
-3. **account-service** (Port: 8083)
+3. account-service (Port: 8083)
    - Account CRUD operations
    - Account types (SAVINGS, CHECKING, etc.)
    - Balance management
    - Account status
    - Account linking
 
-4. **transaction-service** (Port: 8084)
+4. transaction-service (Port: 8084)
    - Money transfers
    - Deposits/Withdrawals
    - Transaction history
    - Transaction status
    - Idempotency handling
 
-5. **payment-service** (Port: 8085)
+5. payment-service (Port: 8085)
    - Bill payments
    - Scheduled payments
    - Recurring payments
    - Payment gateway integration
    - Payment history
 
-6. **statement-service** (Port: 8086)
+6. statement-service (Port: 8086)
    - Statement generation
    - PDF creation
    - Statement history
    - Email delivery
    - Statement scheduling
 
-7. **notification-service** (Port: 8087)
+7. notification-service (Port: 8087)
    - Email notifications
    - SMS notifications
    - Push notifications
    - Notification templates
    - Delivery tracking
 
-8. **audit-service** (Port: 8088)
+8. audit-service (Port: 8088)
    - Audit logging
    - Compliance tracking
    - Transaction audit
    - User activity logs
    - Report generation
 
-9. **fraud-service** (Port: 8089)
+9. fraud-service (Port: 8089)
    - Fraud detection
    - Risk assessment
    - Transaction monitoring
    - Alert generation
    - ML-based scoring
 
-10. **admin-service** (Port: 8090)
+10. admin-service (Port: 8090)
     - Admin operations
     - User management
     - System monitoring
     - Reports & analytics
     - Configuration management
 
-### **Infrastructure Services (4):**
+### Infrastructure Services (4):
 
-11. **config-server** (Port: 8888)
+11. config-server (Port: 8888)
     - Centralized configuration
     - Environment-specific configs
     - Dynamic refresh
     - Encryption support
 
-12. **discovery-server** (Port: 8761)
+12. discovery-server (Port: 8761)
     - Service registry (Eureka)
     - Service discovery
     - Health monitoring
     - Load balancing
 
-13. **api-gateway** (Port: 8080)
+13. api-gateway (Port: 8080)
     - Single entry point
     - Request routing
     - Authentication/Authorization
     - Rate limiting
     - Circuit breaking
 
-14. **logging-service** (Port: 5601)
+14. logging-service (Port: 5601)
     - Centralized logging (ELK)
     - Log aggregation
     - Log analysis
@@ -592,6 +592,3 @@ rr-bank-microservices/
     └── DEVELOPMENT_GUIDE.md
 ```
 
-This is Part 1 of the architecture. Due to response length limits, I'll continue with STEP 5 in the next section.
-
-**Continue to Part 2?** (Y/N)

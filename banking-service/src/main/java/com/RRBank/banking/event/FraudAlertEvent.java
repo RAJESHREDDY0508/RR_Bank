@@ -20,20 +20,38 @@ import java.util.UUID;
 @Builder
 public class FraudAlertEvent {
 
+    // Fraud identifiers
     private UUID fraudEventId;
     private UUID transactionId;
+
+    // Primary account (used by AuditEventsConsumer)
     private UUID accountId;
+
+    // Domain context
     private UUID customerId;
+
+    // Amounts (domain + audit compatibility)
     private BigDecimal transactionAmount;
-    private BigDecimal amount; // Alias for transactionAmount (for audit compatibility)
+    private BigDecimal amount;
+
+    // Risk analysis
     private BigDecimal riskScore;
     private String riskLevel;
-    private String fraudType; // For audit compatibility
+
+    // Required by AuditEventsConsumer
+    private String fraudType;
+
+    // Fraud context
     private List<String> fraudReasons;
-    private String actionTaken; // BLOCKED, FLAGGED_FOR_REVIEW
-    private String alertSeverity; // HIGH, CRITICAL
+
+    // Actions & severity
+    private String actionTaken;    // BLOCKED, FLAGGED_FOR_REVIEW
+    private String alertSeverity;  // HIGH, CRITICAL
+
+    // Timestamp
     private LocalDateTime alertedAt;
-    
+
+    // Event metadata
     @Builder.Default
     private String eventType = "FRAUD_ALERT";
 }

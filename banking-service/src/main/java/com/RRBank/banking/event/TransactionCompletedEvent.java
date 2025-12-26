@@ -19,21 +19,35 @@ import java.util.UUID;
 @Builder
 public class TransactionCompletedEvent {
 
+    // Core identifiers
     private UUID transactionId;
     private String transactionReference;
+
+    // Account relationships
     private UUID fromAccountId;
     private UUID toAccountId;
-    private UUID accountId; // Primary account (for audit compatibility)
+
+    // Primary account (used by AuditEventsConsumer)
+    private UUID accountId;
+
+    // Transaction details
     private String transactionType;
     private BigDecimal amount;
     private String currency;
     private String description;
+
+    // Balances
     private BigDecimal fromAccountNewBalance;
     private BigDecimal toAccountNewBalance;
-    private BigDecimal newBalance; // For audit compatibility
-    private String status; // For audit compatibility
+
+    // Required by AuditEventsConsumer
+    private BigDecimal newBalance;
+    private String status;
+
+    // Timestamps
     private LocalDateTime completedAt;
-    
+
+    // Event metadata
     @Builder.Default
     private String eventType = "TRANSACTION_COMPLETED";
 }
