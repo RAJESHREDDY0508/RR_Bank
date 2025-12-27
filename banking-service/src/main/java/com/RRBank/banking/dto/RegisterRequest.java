@@ -5,6 +5,14 @@ import lombok.*;
 
 /**
  * DTO for user registration requests
+ * 
+ * Field requirements:
+ * - username: 3-50 chars, required
+ * - email: valid email format, required
+ * - password: 8+ chars, must contain digit, lowercase, uppercase, special char
+ * - firstName: required
+ * - lastName: required
+ * - phoneNumber: optional, if provided must be 10-15 digits (can start with +)
  */
 @Data
 @NoArgsConstructor
@@ -23,8 +31,8 @@ public class RegisterRequest {
     @NotBlank(message = "Password is required")
     @Size(min = 8, message = "Password must be at least 8 characters")
     @Pattern(
-        regexp = "^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=]).*$",
-        message = "Password must contain at least one digit, one lowercase, one uppercase, and one special character"
+        regexp = "^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*+=?_\\-]).*$",
+        message = "Password must contain at least one digit, one lowercase, one uppercase, and one special character (!@#$%^&*+=?_-)"
     )
     private String password;
     
@@ -34,7 +42,8 @@ public class RegisterRequest {
     @NotBlank(message = "Last name is required")
     private String lastName;
     
-    @Pattern(regexp = "^[+]?[0-9]{10,15}$", message = "Invalid phone number")
+    // Phone number is optional - if provided, must be valid format
+    @Pattern(regexp = "^$|^[+]?[0-9]{10,15}$", message = "Invalid phone number format (10-15 digits, may start with +)")
     private String phoneNumber;
     
     private String address;

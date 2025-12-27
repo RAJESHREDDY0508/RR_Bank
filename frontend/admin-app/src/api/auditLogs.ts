@@ -13,25 +13,26 @@ export interface AuditLogSearchParams {
 }
 
 export const auditLogsApi = {
+  // ✅ FIX: Use /admin/audit-logs path for admin operations
   getAuditLogs: async (params: AuditLogSearchParams = {}): Promise<PaginatedResponse<AuditLog>> => {
-    const response = await apiClient.get('/audit-logs', { params });
+    const response = await apiClient.get('/admin/audit-logs', { params });
     return response.data;
   },
 
   getAuditLog: async (logId: string): Promise<AuditLog> => {
-    const response = await apiClient.get(`/audit-logs/${logId}`);
+    const response = await apiClient.get(`/admin/audit-logs/${logId}`);
     return response.data;
   },
 
   getUserAuditLogs: async (userId: string, page = 0, size = 20): Promise<PaginatedResponse<AuditLog>> => {
-    const response = await apiClient.get(`/audit-logs/user/${userId}`, {
+    const response = await apiClient.get(`/admin/audit-logs/user/${userId}`, {
       params: { page, size },
     });
     return response.data;
   },
 
   exportAuditLogs: async (params: AuditLogSearchParams): Promise<Blob> => {
-    const response = await apiClient.get('/audit-logs/export', {
+    const response = await apiClient.get('/admin/audit-logs/export', {
       params,
       responseType: 'blob',
     });

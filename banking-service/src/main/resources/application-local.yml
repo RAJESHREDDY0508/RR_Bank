@@ -25,7 +25,8 @@ spring:
   # JPA/Hibernate - Local Development
   jpa:
     hibernate:
-      ddl-auto: validate
+      # ✅ Changed from 'validate' to 'update' to auto-create missing tables
+      ddl-auto: update
     show-sql: true
     properties:
       hibernate:

@@ -23,14 +23,18 @@ public class AccountResponseDto {
     private UUID id;
     private String accountNumber;
     private UUID customerId;
+    private String userId;
     private String accountType;
     private BigDecimal balance;
+    private BigDecimal availableBalance;
+    private BigDecimal minimumBalance;
     private String currency;
     private String status;
     private BigDecimal overdraftLimit;
     private BigDecimal interestRate;
     private LocalDateTime openedAt;
     private LocalDateTime closedAt;
+    private LocalDateTime lastTransactionDate;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -42,14 +46,18 @@ public class AccountResponseDto {
                 .id(account.getId())
                 .accountNumber(account.getAccountNumber())
                 .customerId(account.getCustomerId())
+                .userId(account.getUserId())
                 .accountType(account.getAccountType().name())
                 .balance(account.getBalance())
+                .availableBalance(account.getAvailableBalance())
+                .minimumBalance(account.getMinimumBalance())
                 .currency(account.getCurrency())
                 .status(account.getStatus().name())
                 .overdraftLimit(account.getOverdraftLimit())
                 .interestRate(account.getInterestRate())
                 .openedAt(account.getOpenedAt())
                 .closedAt(account.getClosedAt())
+                .lastTransactionDate(account.getLastTransactionDate())
                 .createdAt(account.getCreatedAt())
                 .updatedAt(account.getUpdatedAt())
                 .build();

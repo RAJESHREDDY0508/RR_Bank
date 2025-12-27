@@ -1,6 +1,8 @@
 package com.RRBank.banking.controller;
 
 import com.RRBank.banking.dto.*;
+import com.RRBank.banking.security.CustomUserDetails;
+import com.RRBank.banking.service.AccountRequestService;
 import com.RRBank.banking.service.AccountService;
 import com.RRBank.banking.service.TransactionService;
 import jakarta.validation.Valid;
@@ -28,6 +30,7 @@ public class AccountController {
 
     private final AccountService accountService;
     private final TransactionService transactionService;
+    private final AccountRequestService accountRequestService;
 
     /**
      * Create new bank account
@@ -55,6 +58,52 @@ public class AccountController {
     }
 
     /**
+     * Get my account requests (for authenticated user)
+     * GET /api/accounts/requests
+     */
+    @GetMapping("/requests")
+    @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
+    public ResponseEntity<List<AccountRequestResponse>> getMyAccountRequests(Authentication authentication) {
+        String userId = extractUserIdString(authentication);
+        log.info("REST request to get account requests for user: {}", userId);
+        
+        List<AccountRequestResponse> requests = accountRequestService.getUserRequests(userId);
+        return ResponseEntity.ok(requests);
+    }
+
+    /**
+     * Submit account opening request
+     * POST /api/accounts/requests
+     */
+    @PostMapping("/requests")
+    @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
+    public ResponseEntity<AccountRequestResponse> submitAccountRequest(
+            @Valid @RequestBody AccountOpenRequest request,
+            Authentication authentication) {
+        String userId = extractUserIdString(authentication);
+        log.info("REST request to submit account request for user: {}", userId);
+        
+        AccountRequestResponse response = accountRequestService.submitRequest(userId, request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * Cancel account request
+     * DELETE /api/accounts/requests/{requestId}
+     */
+    @DeleteMapping("/requests/{requestId}")
+    @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
+    public ResponseEntity<AccountRequestResponse> cancelAccountRequest(
+            @PathVariable UUID requestId,
+            Authentication authentication) {
+        String userId = extractUserIdString(authentication);
+        log.info("REST request to cancel account request {} for user: {}", requestId, userId);
+        
+        AccountRequestResponse response = accountRequestService.cancelRequest(requestId, userId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
      * Deposit money to account
      * POST /api/accounts/{accountId}/deposit
      */
@@ -72,7 +121,7 @@ public class AccountController {
                 accountId,
                 request.getAmount(),
                 request.getDescription(),
-                null, // No idempotency key from this endpoint
+                null,
                 initiatedBy
         );
         
@@ -97,7 +146,7 @@ public class AccountController {
                 accountId,
                 request.getAmount(),
                 request.getDescription(),
-                null, // No idempotency key from this endpoint
+                null,
                 initiatedBy
         );
         
@@ -264,5 +313,16 @@ public class AccountController {
             log.warn("Could not parse user ID from authentication: {}", authentication.getName());
             return null;
         }
+    }
+
+    private String extractUserIdString(Authentication authentication) {
+        if (authentication != null) {
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof CustomUserDetails) {
+                return ((CustomUserDetails) principal).getUserId();
+            }
+            return authentication.getName();
+        }
+        return null;
     }
 }

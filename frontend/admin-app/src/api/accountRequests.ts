@@ -3,6 +3,8 @@ import apiClient from './client';
 export interface AccountRequest {
   id: string;
   userId: string;
+  customerName?: string;
+  customerEmail?: string;
   accountType: string;
   initialDeposit: number;
   currency: string;
@@ -29,8 +31,9 @@ export interface PendingCountResponse {
 
 export const accountRequestsApi = {
   // Get pending account requests
+  // ✅ FIX: Use /admin/account-requests path
   getPendingRequests: async (page = 0, size = 20): Promise<AccountRequestsResponse> => {
-    const response = await apiClient.get('/account-requests', {
+    const response = await apiClient.get('/admin/account-requests', {
       params: { page, size }
     });
     return response.data;
@@ -38,19 +41,19 @@ export const accountRequestsApi = {
 
   // Get pending requests count
   getPendingCount: async (): Promise<PendingCountResponse> => {
-    const response = await apiClient.get('/account-requests/count');
+    const response = await apiClient.get('/admin/account-requests/count');
     return response.data;
   },
 
   // Approve account request
   approveRequest: async (requestId: string, notes?: string): Promise<AccountRequest> => {
-    const response = await apiClient.post(`/account-requests/${requestId}/approve`, { notes });
+    const response = await apiClient.post(`/admin/account-requests/${requestId}/approve`, { notes });
     return response.data;
   },
 
   // Reject account request
   rejectRequest: async (requestId: string, notes: string): Promise<AccountRequest> => {
-    const response = await apiClient.post(`/account-requests/${requestId}/reject`, { notes });
+    const response = await apiClient.post(`/admin/account-requests/${requestId}/reject`, { notes });
     return response.data;
   }
 };

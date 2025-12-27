@@ -1,7 +1,8 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 interface AdminUser {
-  id: string;
+  userId?: string;
+  id?: string;
   username: string;
   email: string;
   role: string;
@@ -17,10 +18,14 @@ interface AuthState {
   error: string | null;
 }
 
+// ✅ FIX: Use consistent token key 'accessToken' across the app
+const ACCESS_TOKEN_KEY = 'accessToken';
+const REFRESH_TOKEN_KEY = 'refreshToken';
+
 const initialState: AuthState = {
   user: null,
-  token: localStorage.getItem('admin_token'),
-  isAuthenticated: !!localStorage.getItem('admin_token'),
+  token: localStorage.getItem(ACCESS_TOKEN_KEY),
+  isAuthenticated: !!localStorage.getItem(ACCESS_TOKEN_KEY),
   loading: false,
   error: null,
 };
@@ -38,7 +43,8 @@ const authSlice = createSlice({
       state.isAuthenticated = true;
       state.user = action.payload.user;
       state.token = action.payload.token;
-      localStorage.setItem('admin_token', action.payload.token);
+      // Token is already stored by authApi.login, but ensure it's there
+      localStorage.setItem(ACCESS_TOKEN_KEY, action.payload.token);
     },
     loginFailure: (state, action: PayloadAction<string>) => {
       state.loading = false;
@@ -50,7 +56,8 @@ const authSlice = createSlice({
       state.token = null;
       state.isAuthenticated = false;
       state.error = null;
-      localStorage.removeItem('admin_token');
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
     },
     clearError: (state) => {
       state.error = null;

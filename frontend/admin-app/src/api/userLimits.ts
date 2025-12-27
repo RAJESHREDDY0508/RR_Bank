@@ -18,8 +18,9 @@ export interface UserLimitsResponse {
 
 export const userLimitsApi = {
   // Get user's transaction limits
+  // ✅ FIX: Use /admin/users path for admin operations
   getUserLimits: async (userId: string): Promise<TransactionLimit[]> => {
-    const response = await apiClient.get(`/users/${userId}/limits`);
+    const response = await apiClient.get(`/admin/users/${userId}/limits`);
     return response.data;
   },
 
@@ -31,7 +32,7 @@ export const userLimitsApi = {
     perTransactionLimit?: number,
     monthlyLimit?: number
   ): Promise<TransactionLimit> => {
-    const response = await apiClient.put(`/users/${userId}/limits`, null, {
+    const response = await apiClient.put(`/admin/users/${userId}/limits`, null, {
       params: {
         limitType,
         dailyLimit,

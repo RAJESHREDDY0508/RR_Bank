@@ -30,6 +30,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
      */
     Optional<Transaction> findByIdempotencyKey(String idempotencyKey);
 
+    /**
+     * Count transactions created after a specific date
+     */
+    long countByCreatedAtAfter(LocalDateTime dateTime);
+
     // ========== PAGINATED METHODS ✅ (FOR PRODUCTION USE) ==========
     /**
      * Find all transactions for an account (as sender or receiver) - with

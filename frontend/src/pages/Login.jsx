@@ -30,13 +30,30 @@ const Login = () => {
       await login(formData);
       navigate('/dashboard');
     } catch (err) {
-      const message = err.response?.data?.message || 'Login failed. Please check your credentials.';
-      // Handle account locked
-      if (message.toLowerCase().includes('locked')) {
-        setError('Your account has been locked due to too many failed attempts. Please try again later or reset your password.');
-      } else {
-        setError(message);
+      const errorData = err.response?.data;
+      let message = 'Login failed. Please check your credentials.';
+      
+      if (errorData) {
+        // Handle specific error codes
+        if (errorData.error === 'INVALID_CREDENTIALS' || errorData.code === 401) {
+          message = 'Invalid email or password. Please try again.';
+        } else if (errorData.error === 'ACCOUNT_LOCKED' || errorData.code === 423) {
+          message = 'Your account has been locked due to too many failed attempts. Please try again later or reset your password.';
+        } else if (errorData.error === 'ACCOUNT_INACTIVE' || errorData.code === 403) {
+          message = errorData.message || 'Your account is not active. Please contact support.';
+        } else if (errorData.error === 'VALIDATION_ERROR' || errorData.code === 400) {
+          // Handle validation errors
+          if (errorData.details && Array.isArray(errorData.details)) {
+            message = errorData.details.join(', ');
+          } else {
+            message = errorData.message || 'Please check your input and try again.';
+          }
+        } else if (errorData.message) {
+          message = errorData.message;
+        }
       }
+      
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -73,7 +90,7 @@ const Login = () => {
             {/* Email Field */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
+                Email Address or Username
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -82,12 +99,12 @@ const Login = () => {
                 <input
                   id="email"
                   name="email"
-                  type="email"
+                  type="text"
                   required
                   value={formData.email}
                   onChange={handleChange}
                   className="input-field pl-10"
-                  placeholder="you@example.com"
+                  placeholder="you@example.com or username"
                 />
               </div>
             </div>

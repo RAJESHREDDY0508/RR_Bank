@@ -3,51 +3,70 @@ export interface User {
   userId: string;
   username: string;
   email: string;
-  role: 'ADMIN' | 'SUPER_ADMIN' | 'SUPPORT';
-  createdAt: string;
+  role: string;
+  firstName?: string;
+  lastName?: string;
+  createdAt?: string;
   lastLogin?: string;
-  status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+  status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
 }
 
 // Customer Types
 export interface Customer {
+  id?: string;
   userId: string;
-  username: string;
+  username?: string;
   email: string;
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
+  phone?: string;
   address?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+  country?: string;
   dateOfBirth?: string;
-  kycStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
-  accountStatus: 'ACTIVE' | 'SUSPENDED' | 'CLOSED';
+  kycStatus: 'PENDING' | 'IN_PROGRESS' | 'VERIFIED' | 'REJECTED' | 'EXPIRED';
+  customerSegment?: 'REGULAR' | 'PREMIUM' | 'VIP' | 'CORPORATE';
+  accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'CLOSED';
   createdAt: string;
-  totalAccounts: number;
-  totalBalance: number;
+  totalAccounts?: number;
+  totalBalance?: number;
 }
 
 // Account Types
 export interface Account {
+  id?: string;
   accountNumber: string;
-  userId: string;
-  accountType: 'SAVINGS' | 'CHECKING' | 'CREDIT';
+  customerId?: string;
+  userId?: string;
+  accountType: 'SAVINGS' | 'CHECKING' | 'CREDIT' | 'BUSINESS';
   balance: number;
+  availableBalance?: number;
   currency: string;
-  status: 'ACTIVE' | 'FROZEN' | 'CLOSED';
+  status: 'PENDING' | 'ACTIVE' | 'FROZEN' | 'CLOSED' | 'SUSPENDED';
   createdAt: string;
+  openedAt?: string;
   lastTransactionDate?: string;
 }
 
 // Transaction Types
 export interface Transaction {
-  transactionId: string;
-  accountNumber: string;
-  transactionType: 'DEPOSIT' | 'WITHDRAWAL' | 'TRANSFER' | 'PAYMENT';
+  id?: string;
+  transactionId?: string;
+  transactionReference?: string;
+  accountNumber?: string;
+  fromAccountId?: string;
+  toAccountId?: string;
+  transactionType: 'DEPOSIT' | 'WITHDRAWAL' | 'TRANSFER' | 'PAYMENT' | 'FEE' | 'INTEREST' | 'REFUND' | 'ADJUSTMENT';
   amount: number;
   currency: string;
-  description: string;
-  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
-  timestamp: string;
+  description?: string;
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'REVERSED';
+  timestamp?: string;
+  createdAt?: string;
+  completedAt?: string;
   fromAccount?: string;
   toAccount?: string;
   metadata?: Record<string, any>;
@@ -55,18 +74,27 @@ export interface Transaction {
 
 // Fraud Alert Types
 export interface FraudAlert {
-  alertId: string;
-  transactionId: string;
-  accountNumber: string;
-  customerId: string;
-  alertType: 'SUSPICIOUS_ACTIVITY' | 'LARGE_TRANSACTION' | 'UNUSUAL_PATTERN' | 'MULTIPLE_FAILED_ATTEMPTS';
-  severity: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  status: 'NEW' | 'INVESTIGATING' | 'RESOLVED' | 'FALSE_POSITIVE';
-  description: string;
-  detectedAt: string;
+  id?: string;
+  alertId?: string;
+  transactionId?: string;
+  accountId?: string;
+  accountNumber?: string;
+  customerId?: string;
+  alertType?: 'SUSPICIOUS_ACTIVITY' | 'LARGE_TRANSACTION' | 'UNUSUAL_PATTERN' | 'MULTIPLE_FAILED_ATTEMPTS';
+  eventType?: string;
+  riskScore?: number;
+  riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  status?: 'NEW' | 'INVESTIGATING' | 'RESOLVED' | 'FALSE_POSITIVE';
+  resolved?: boolean;
+  description?: string;
+  flaggedReason?: string;
+  detectedAt?: string;
+  createdAt?: string;
   resolvedAt?: string;
   resolvedBy?: string;
   notes?: string;
+  resolutionNotes?: string;
 }
 
 // Payment Types
@@ -84,40 +112,69 @@ export interface Payment {
 
 // Audit Log Types
 export interface AuditLog {
-  logId: string;
+  id?: string;
+  logId?: string;
   userId: string;
-  username: string;
+  username?: string;
   action: string;
-  resource: string;
-  resourceId: string;
-  details: string;
-  ipAddress: string;
-  timestamp: string;
+  resource?: string;
+  entityType?: string;
+  resourceId?: string;
+  entityId?: string;
+  details?: string;
+  oldValue?: any;
+  newValue?: any;
+  ipAddress?: string;
+  timestamp?: string;
+  createdAt?: string;
   status: 'SUCCESS' | 'FAILURE';
 }
 
 // Dashboard Metrics Types
 export interface DashboardMetrics {
   totalCustomers: number;
-  activeCustomers: number;
+  activeCustomers?: number;
   totalAccounts: number;
+  activeAccounts?: number;
+  totalTransactions?: number;
   totalBalance: number;
   todayTransactions: number;
-  todayTransactionVolume: number;
-  pendingFraudAlerts: number;
-  systemHealth: 'HEALTHY' | 'WARNING' | 'CRITICAL';
+  todayTransactionVolume?: number;
+  pendingFraudAlerts?: number;
+  pendingAccountRequests?: number;
+  systemHealth?: 'HEALTHY' | 'WARNING' | 'CRITICAL';
 }
 
 // Report Types
 export interface Report {
-  reportId: string;
+  id?: string;
+  reportId?: string;
   reportType: 'TRANSACTIONS' | 'CUSTOMERS' | 'FRAUD' | 'FINANCIAL';
-  generatedBy: string;
-  generatedAt: string;
-  parameters: Record<string, any>;
+  generatedBy?: string;
+  generatedAt?: string;
+  createdAt?: string;
+  parameters?: Record<string, any>;
   format: 'PDF' | 'EXCEL' | 'CSV';
   status: 'GENERATING' | 'COMPLETED' | 'FAILED';
   downloadUrl?: string;
+}
+
+// Account Request Types
+export interface AccountRequest {
+  id: string;
+  userId: string;
+  customerName?: string;
+  customerEmail?: string;
+  accountType: string;
+  initialDeposit: number;
+  currency: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  requestNotes?: string;
+  adminNotes?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  accountId?: string;
+  createdAt: string;
 }
 
 // API Response Types
@@ -132,6 +189,8 @@ export interface PaginatedResponse<T> {
   content: T[];
   totalElements: number;
   totalPages: number;
-  currentPage: number;
-  pageSize: number;
+  number?: number;
+  currentPage?: number;
+  size?: number;
+  pageSize?: number;
 }

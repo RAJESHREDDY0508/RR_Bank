@@ -13,12 +13,15 @@ export const useAuth = () => {
   const login = useCallback(async (username: string, password: string) => {
     try {
       dispatch(loginStart());
-      const response = await authApi.login(username, password);
       
-      if (response.data.token && response.data.user) {
+      // ✅ FIX: Pass credentials as object, not separate arguments
+      const response = await authApi.login({ username, password });
+      
+      // ✅ FIX: authApi.login returns { accessToken, refreshToken, user } directly
+      if (response.accessToken && response.user) {
         dispatch(loginSuccess({
-          user: response.data.user,
-          token: response.data.token,
+          user: response.user,
+          token: response.accessToken,
         }));
         toast.success('Login successful!');
         navigate('/dashboard');
@@ -26,16 +29,22 @@ export const useAuth = () => {
         throw new Error('Invalid response from server');
       }
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || 'Login failed. Please try again.';
+      const errorMessage = error.response?.data?.message || error.message || 'Login failed. Please try again.';
       dispatch(loginFailure(errorMessage));
       toast.error(errorMessage);
     }
   }, [dispatch, navigate]);
 
-  const logout = useCallback(() => {
-    dispatch(logoutAction());
-    toast.info('Logged out successfully');
-    navigate('/login');
+  const logout = useCallback(async () => {
+    try {
+      await authApi.logout();
+    } catch (error) {
+      console.error('Logout API error:', error);
+    } finally {
+      dispatch(logoutAction());
+      toast.info('Logged out successfully');
+      navigate('/login');
+    }
   }, [dispatch, navigate]);
 
   return {

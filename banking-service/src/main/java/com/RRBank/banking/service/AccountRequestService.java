@@ -5,11 +5,13 @@ import com.RRBank.banking.dto.AccountRequestResponse;
 import com.RRBank.banking.entity.Account;
 import com.RRBank.banking.entity.AccountRequest;
 import com.RRBank.banking.entity.Customer;
+import com.RRBank.banking.entity.User;
 import com.RRBank.banking.exception.BusinessException;
 import com.RRBank.banking.exception.ResourceNotFoundException;
 import com.RRBank.banking.repository.AccountRepository;
 import com.RRBank.banking.repository.AccountRequestRepository;
 import com.RRBank.banking.repository.CustomerRepository;
+import com.RRBank.banking.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -20,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -35,6 +38,7 @@ public class AccountRequestService {
     private final AccountRequestRepository requestRepository;
     private final AccountRepository accountRepository;
     private final CustomerRepository customerRepository;
+    private final UserRepository userRepository;
     private final LedgerService ledgerService;
 
     @Transactional
@@ -84,8 +88,8 @@ public class AccountRequestService {
             throw new BusinessException("Request is not pending. Status: " + request.getStatus());
         }
         
-        Customer customer = customerRepository.findByUserId(UUID.fromString(request.getUserId()))
-            .orElseThrow(() -> new ResourceNotFoundException("Customer not found for user: " + request.getUserId()));
+        // Get or create customer for this user
+        Customer customer = getOrCreateCustomer(request.getUserId());
         
         Account account = Account.builder()
             .accountNumber(generateAccountNumber())
@@ -100,17 +104,72 @@ public class AccountRequestService {
             .build();
         
         account = accountRepository.save(account);
+        log.info("Account created: {} for user {}", account.getAccountNumber(), request.getUserId());
         
+        // Process initial deposit if any
         if (request.getInitialDeposit() != null && request.getInitialDeposit().compareTo(BigDecimal.ZERO) > 0) {
-            ledgerService.executeDeposit(account.getId(), request.getInitialDeposit(), null, "Initial deposit");
+            try {
+                ledgerService.executeDeposit(account.getId(), request.getInitialDeposit(), null, "Initial deposit");
+                log.info("Initial deposit of {} processed for account {}", request.getInitialDeposit(), account.getAccountNumber());
+            } catch (Exception e) {
+                log.warn("Failed to process initial deposit: {}. Account created without deposit.", e.getMessage());
+                // Don't fail the approval - just log the warning
+                // The account is still created, user can deposit later
+            }
         }
         
         request.approve(adminId, notes, account.getId());
-        return AccountRequestResponse.fromEntity(requestRepository.save(request));
+        AccountRequest savedRequest = requestRepository.save(request);
+        
+        log.info("Account request {} approved. Account {} created.", requestId, account.getAccountNumber());
+        
+        return AccountRequestResponse.fromEntity(savedRequest);
+    }
+
+    /**
+     * Get existing customer or create a new one for the user
+     */
+    private Customer getOrCreateCustomer(String userId) {
+        log.info("Looking up customer for userId: {}", userId);
+        
+        // Try to find existing customer
+        Optional<Customer> existingCustomer = customerRepository.findByUserId(UUID.fromString(userId));
+        
+        if (existingCustomer.isPresent()) {
+            log.info("Found existing customer: {}", existingCustomer.get().getId());
+            return existingCustomer.get();
+        }
+        
+        // Customer doesn't exist - create one from User data
+        log.info("Customer not found for user {}. Creating new customer record.", userId);
+        
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
+        
+        Customer newCustomer = Customer.builder()
+            .userId(UUID.fromString(userId))
+            .firstName(user.getFirstName())
+            .lastName(user.getLastName())
+            .phone(user.getPhoneNumber())
+            .address(user.getAddress())
+            .city(user.getCity())
+            .state(user.getState())
+            .zipCode(user.getPostalCode())
+            .country(user.getCountry())
+            .kycStatus(Customer.KycStatus.PENDING)
+            .customerSegment(Customer.CustomerSegment.REGULAR)
+            .build();
+        
+        newCustomer = customerRepository.save(newCustomer);
+        log.info("Created new customer: {} for user {}", newCustomer.getId(), userId);
+        
+        return newCustomer;
     }
 
     @Transactional
     public AccountRequestResponse rejectRequest(UUID requestId, String adminId, String reason) {
+        log.info("Admin {} rejecting request {} with reason: {}", adminId, requestId, reason);
+        
         AccountRequest request = requestRepository.findById(requestId)
             .orElseThrow(() -> new ResourceNotFoundException("Request not found: " + requestId));
         
@@ -124,6 +183,8 @@ public class AccountRequestService {
 
     @Transactional
     public AccountRequestResponse cancelRequest(UUID requestId, String userId) {
+        log.info("User {} cancelling request {}", userId, requestId);
+        
         AccountRequest request = requestRepository.findById(requestId)
             .orElseThrow(() -> new ResourceNotFoundException("Request not found: " + requestId));
         

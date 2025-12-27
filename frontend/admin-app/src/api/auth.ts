@@ -6,34 +6,47 @@ export interface LoginRequest {
   password: string;
 }
 
-// ✅ FIX: Standardized to use 'accessToken' everywhere
 export interface LoginResponse {
   accessToken: string;
   refreshToken: string;
   user: User;
 }
 
-// Backend response type (different from frontend interface)
+// Backend response type
 interface BackendAuthResponse {
   accessToken: string;
   refreshToken: string;
+  tokenType?: string;
+  expiresIn?: number;
   userId: string;
   username: string;
   email: string;
   role: string;
-  expiresIn?: number;
+  mfaRequired?: boolean;
+  success?: boolean;
+  message?: string;
 }
 
-// ✅ FIX: Standardized to use 'accessToken' everywhere
 const ACCESS_TOKEN_KEY = 'accessToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 
 export const authApi = {
   login: async (credentials: LoginRequest): Promise<LoginResponse> => {
-    const response = await apiClient.post<BackendAuthResponse>('/auth/login', credentials);
+    // ✅ FIX: Backend expects 'usernameOrEmail', not 'username'
+    const response = await apiClient.post<BackendAuthResponse>('/auth/login', {
+      usernameOrEmail: credentials.username,
+      password: credentials.password
+    });
     const data = response.data;
 
-    // ✅ FIX: Use accessToken directly from backend
+    // Store tokens
+    if (data.accessToken) {
+      localStorage.setItem(ACCESS_TOKEN_KEY, data.accessToken);
+    }
+    if (data.refreshToken) {
+      localStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
+    }
+
     return {
       accessToken: data.accessToken,
       refreshToken: data.refreshToken,
@@ -49,13 +62,24 @@ export const authApi = {
   },
 
   logout: async (): Promise<void> => {
-    await apiClient.post('/auth/logout');
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
+    try {
+      const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+      if (refreshToken) {
+        await apiClient.post('/auth/logout', null, {
+          headers: {
+            Authorization: `Bearer ${refreshToken}`,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+    }
   },
 
   refreshToken: async (refreshToken: string): Promise<{ accessToken: string }> => {
-    // ✅ FIX: Send refresh token in Authorization header
     const response = await apiClient.post<BackendAuthResponse>(
       '/auth/refresh',
       null,
@@ -66,7 +90,11 @@ export const authApi = {
       }
     );
     
-    // ✅ FIX: Backend returns accessToken
+    // Store the new access token
+    if (response.data.accessToken) {
+      localStorage.setItem(ACCESS_TOKEN_KEY, response.data.accessToken);
+    }
+    
     return {
       accessToken: response.data.accessToken,
     };

@@ -59,8 +59,8 @@ public class User {
     @NotBlank(message = "Last name is required")
     private String lastName;
     
+    // Phone number is optional - empty string or valid phone format allowed
     @Column(name = "phone_number", length = 20)
-    @Pattern(regexp = "^[+]?[0-9]{10,15}$", message = "Invalid phone number")
     private String phoneNumber;
     
     @Column(name = "address", length = 255)

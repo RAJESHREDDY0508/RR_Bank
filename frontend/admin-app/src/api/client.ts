@@ -7,8 +7,10 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 const ACCESS_TOKEN_KEY = 'accessToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 
+// ✅ FIX: Base URL should be /api, not /api/admin
+// Individual endpoints will specify their paths (/admin/*, /auth/*, etc.)
 export const apiClient = axios.create({
-  baseURL: `${API_BASE_URL}/api/admin`,
+  baseURL: `${API_BASE_URL}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -41,7 +43,7 @@ apiClient.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
         if (refreshToken) {
-          // ✅ FIX: Send refresh token in Authorization header, not in body
+          // ✅ FIX: Send refresh token in Authorization header
           const response = await axios.post(
             `${API_BASE_URL}/api/auth/refresh`,
             null,
@@ -52,21 +54,17 @@ apiClient.interceptors.response.use(
             }
           );
           
-          // ✅ FIX: Backend returns accessToken
           const { accessToken, refreshToken: newRefreshToken } = response.data;
           localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
           
-          // Update refresh token if backend sends a new one
           if (newRefreshToken) {
             localStorage.setItem(REFRESH_TOKEN_KEY, newRefreshToken);
           }
           
-          // Retry original request
           originalRequest.headers.Authorization = `Bearer ${accessToken}`;
           return apiClient(originalRequest);
         }
       } catch (refreshError) {
-        // Refresh failed, redirect to login
         localStorage.removeItem(ACCESS_TOKEN_KEY);
         localStorage.removeItem(REFRESH_TOKEN_KEY);
         window.location.href = '/login';

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Building2, Mail, Lock, User, Phone, AlertCircle, Loader, CheckCircle } from 'lucide-react';
+import { Building2, Mail, Lock, User, Phone, AlertCircle, Loader, CheckCircle, Info } from 'lucide-react';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -27,6 +27,23 @@ const Register = () => {
     setError('');
   };
 
+  // Validate password strength
+  const validatePassword = (password) => {
+    const hasDigit = /[0-9]/.test(password);
+    const hasLower = /[a-z]/.test(password);
+    const hasUpper = /[A-Z]/.test(password);
+    const hasSpecial = /[!@#$%^&*+=?_\-]/.test(password);
+    const hasLength = password.length >= 8;
+
+    if (!hasLength) return 'Password must be at least 8 characters';
+    if (!hasDigit) return 'Password must contain at least one digit';
+    if (!hasLower) return 'Password must contain at least one lowercase letter';
+    if (!hasUpper) return 'Password must contain at least one uppercase letter';
+    if (!hasSpecial) return 'Password must contain at least one special character (!@#$%^&*+=?_-)';
+    
+    return null;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -37,22 +54,48 @@ const Register = () => {
       return;
     }
 
-    if (formData.password.length < 8) {
-      setError('Password must be at least 8 characters long');
+    const passwordError = validatePassword(formData.password);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
+
+    if (formData.username.length < 3) {
+      setError('Username must be at least 3 characters');
       return;
     }
 
     setLoading(true);
 
     try {
-      const { confirmPassword, ...registerData } = formData;
+      // Remove confirmPassword and clean phone number before sending
+      const { confirmPassword, phoneNumber, ...rest } = formData;
+      
+      // Clean phone number - remove spaces, dashes, parentheses
+      const cleanedPhone = phoneNumber ? phoneNumber.replace(/[\s\-\(\)]/g, '') : '';
+      
+      const registerData = {
+        ...rest,
+        // Only include phoneNumber if it's not empty after cleaning
+        ...(cleanedPhone && { phoneNumber: cleanedPhone })
+      };
+      
       await register(registerData);
       setSuccess(true);
       setTimeout(() => {
         navigate('/login');
       }, 2000);
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+      const errorData = err.response?.data;
+      
+      // Handle validation errors (array of details)
+      if (errorData?.details && Array.isArray(errorData.details)) {
+        setError(errorData.details.join(', '));
+      } else if (errorData?.message) {
+        setError(errorData.message);
+      } else {
+        setError('Registration failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -97,7 +140,7 @@ const Register = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-2">
-                  First Name
+                  First Name *
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -118,7 +161,7 @@ const Register = () => {
 
               <div>
                 <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-2">
-                  Last Name
+                  Last Name *
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -141,7 +184,7 @@ const Register = () => {
             {/* Username */}
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-                Username
+                Username * <span className="text-gray-400 text-xs">(3-50 characters)</span>
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -152,6 +195,8 @@ const Register = () => {
                   name="username"
                   type="text"
                   required
+                  minLength={3}
+                  maxLength={50}
                   value={formData.username}
                   onChange={handleChange}
                   className="input-field pl-10"
@@ -164,7 +209,7 @@ const Register = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Email Address
+                  Email Address *
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -185,7 +230,7 @@ const Register = () => {
 
               <div>
                 <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-2">
-                  Phone Number
+                  Phone Number <span className="text-gray-400 text-xs">(optional)</span>
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -195,12 +240,28 @@ const Register = () => {
                     id="phoneNumber"
                     name="phoneNumber"
                     type="tel"
-                    required
                     value={formData.phoneNumber}
                     onChange={handleChange}
                     className="input-field pl-10"
-                    placeholder="+1 (555) 000-0000"
+                    placeholder="+15550000000"
                   />
+                </div>
+              </div>
+            </div>
+
+            {/* Password Requirements Info */}
+            <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg">
+              <div className="flex items-start">
+                <Info className="h-5 w-5 mr-2 flex-shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <p className="font-medium">Password Requirements:</p>
+                  <ul className="list-disc list-inside mt-1 text-xs">
+                    <li>At least 8 characters</li>
+                    <li>At least one digit (0-9)</li>
+                    <li>At least one lowercase letter (a-z)</li>
+                    <li>At least one uppercase letter (A-Z)</li>
+                    <li>At least one special character (!@#$%^&*+=?_-)</li>
+                  </ul>
                 </div>
               </div>
             </div>
@@ -209,7 +270,7 @@ const Register = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                  Password
+                  Password *
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -220,6 +281,7 @@ const Register = () => {
                     name="password"
                     type="password"
                     required
+                    minLength={8}
                     value={formData.password}
                     onChange={handleChange}
                     className="input-field pl-10"
@@ -230,7 +292,7 @@ const Register = () => {
 
               <div>
                 <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                  Confirm Password
+                  Confirm Password *
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

@@ -1,6 +1,8 @@
 package com.RRBank.banking.controller;
 
 import com.RRBank.banking.dto.*;
+import com.RRBank.banking.security.CustomUserDetails;
+import com.RRBank.banking.service.TransactionLimitService;
 import com.RRBank.banking.service.TransactionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,7 @@ import java.util.UUID;
 public class TransactionController {
 
     private final TransactionService transactionService;
+    private final TransactionLimitService transactionLimitService;
 
     /**
      * Transfer money between accounts
@@ -50,6 +53,20 @@ public class TransactionController {
         
         TransactionResponseDto response = transactionService.transfer(request, userId);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * Get transaction limits for authenticated user
+     * GET /api/transactions/limits
+     */
+    @GetMapping("/limits")
+    @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
+    public ResponseEntity<List<TransactionLimitResponse>> getMyLimits(Authentication authentication) {
+        String userId = extractUserIdString(authentication);
+        log.info("REST request to get transaction limits for user: {}", userId);
+        
+        List<TransactionLimitResponse> limits = transactionLimitService.getLimitsForUser(userId);
+        return ResponseEntity.ok(limits);
     }
 
     /**
@@ -91,7 +108,7 @@ public class TransactionController {
         log.info("REST request to get transactions for accountId: {} - page: {}, size: {}", 
                 accountId, page, size);
         
-        Sort sortObj = Sort.by(Sort.Direction.fromString(sort[1]), sort[0]);
+        Sort sortObj = createSort(sort);
         Pageable pageable = PageRequest.of(page, size, sortObj);
         
         Page<TransactionResponseDto> transactions = transactionService.getTransactionsByAccountId(accountId, pageable);
@@ -133,7 +150,7 @@ public class TransactionController {
         
         log.info("REST request to search transactions with filters");
         
-        Sort sortObj = Sort.by(Sort.Direction.fromString(sort[1]), sort[0]);
+        Sort sortObj = createSort(sort);
         Pageable pageable = PageRequest.of(page, size, sortObj);
         
         TransactionSearchDto searchDto = TransactionSearchDto.builder()
@@ -176,8 +193,7 @@ public class TransactionController {
         
         log.info("REST request to get all transactions - page: {}, size: {}", page, size);
         
-        // Create Pageable from parameters
-        Sort sortObj = Sort.by(Sort.Direction.fromString(sort[1]), sort[0]);
+        Sort sortObj = createSort(sort);
         Pageable pageable = PageRequest.of(page, size, sortObj);
         
         Page<TransactionResponseDto> transactions = transactionService.getAllTransactions(pageable);
@@ -186,19 +202,33 @@ public class TransactionController {
 
     // ========== HELPER METHODS ==========
 
+    private Sort createSort(String[] sort) {
+        if (sort.length >= 2) {
+            return Sort.by(Sort.Direction.fromString(sort[1]), sort[0]);
+        }
+        return Sort.by(Sort.Direction.DESC, "createdAt");
+    }
+
     private UUID extractUserIdFromAuthentication(Authentication authentication) {
-        // In a real system, you'd extract this from JWT claims
-        // For now, we'll use a placeholder
         if (authentication != null && authentication.getName() != null) {
-            // Try to parse username as UUID (if it's a UUID)
             try {
                 return UUID.fromString(authentication.getName());
             } catch (IllegalArgumentException e) {
-                // If not a UUID, return a default or fetch from user service
                 log.warn("Could not parse userId from authentication: {}", authentication.getName());
-                return UUID.randomUUID(); // Placeholder
+                return null;
             }
         }
-        return UUID.randomUUID(); // Placeholder
+        return null;
+    }
+
+    private String extractUserIdString(Authentication authentication) {
+        if (authentication != null) {
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof CustomUserDetails) {
+                return ((CustomUserDetails) principal).getUserId();
+            }
+            return authentication.getName();
+        }
+        return null;
     }
 }

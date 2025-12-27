@@ -6,7 +6,13 @@ import { v4 as uuidv4 } from 'uuid';
 // ============================================================
 export const authService = {
   register: async (userData) => {
-    const response = await api.post('/auth/register', userData);
+    // Clean phone number - remove formatting characters
+    const cleanedData = {
+      ...userData,
+      phoneNumber: userData.phoneNumber ? userData.phoneNumber.replace(/[\s\-\(\)]/g, '') : undefined
+    };
+    
+    const response = await api.post('/auth/register', cleanedData);
     const { accessToken, refreshToken, ...user } = response.data;
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
@@ -15,7 +21,13 @@ export const authService = {
   },
 
   login: async (credentials) => {
-    const response = await api.post('/auth/login', credentials);
+    // ✅ FIX: Map frontend 'email' field to backend 'usernameOrEmail' field
+    const loginPayload = {
+      usernameOrEmail: credentials.email || credentials.usernameOrEmail,
+      password: credentials.password
+    };
+    
+    const response = await api.post('/auth/login', loginPayload);
     const { accessToken, refreshToken, ...user } = response.data;
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
@@ -100,12 +112,12 @@ export const authService = {
 };
 
 // ============================================================
-// ACCOUNT SERVICE - Enhanced with account requests, ledger balance
+// ACCOUNT SERVICE - Enhanced with account requests
 // ============================================================
 export const accountService = {
   // Get all accounts for current user
   getAccounts: async () => {
-    const response = await api.get('/accounts');
+    const response = await api.get('/accounts/me');
     return response.data;
   },
 
@@ -115,15 +127,26 @@ export const accountService = {
     return response.data;
   },
 
-  // Get account balance from ledger (source of truth)
+  // Get account balance
   getBalance: async (accountId) => {
     const response = await api.get(`/accounts/${accountId}/balance`);
     return response.data;
   },
 
-  // Request to open new account (goes to admin approval)
-  requestAccount: async (accountType, initialDeposit = 0, currency = 'USD', notes = '') => {
+  // Create new account (requires customerId)
+  createAccount: async (customerId, accountType, initialBalance = 0, currency = 'USD') => {
     const response = await api.post('/accounts', {
+      customerId,
+      accountType,
+      initialBalance,
+      currency
+    });
+    return response.data;
+  },
+
+  // Submit account opening request (goes through approval workflow)
+  requestAccount: async (accountType, initialDeposit = 0, currency = 'USD', notes = '') => {
+    const response = await api.post('/accounts/requests', {
       accountType,
       initialDeposit,
       currency,
@@ -148,34 +171,38 @@ export const accountService = {
   closeAccount: async (accountId) => {
     const response = await api.patch(`/accounts/${accountId}/close`);
     return response.data;
+  },
+
+  // Get accounts by customer ID
+  getAccountsByCustomer: async (customerId) => {
+    const response = await api.get(`/accounts/customer/${customerId}`);
+    return response.data;
   }
 };
 
 // ============================================================
-// TRANSACTION SERVICE - Enhanced with ledger, idempotency, limits
+// TRANSACTION SERVICE - Enhanced with deposit/withdraw
 // ============================================================
 export const transactionService = {
-  // Deposit money (with idempotency)
+  // Deposit money
   deposit: async (accountId, amount, description = '') => {
-    const idempotencyKey = uuidv4();
-    const response = await api.post('/transactions/deposit', 
-      { accountId, amount, description },
-      { headers: { 'Idempotency-Key': idempotencyKey } }
-    );
+    const response = await api.post(`/accounts/${accountId}/deposit`, {
+      amount,
+      description
+    });
     return response.data;
   },
 
-  // Withdraw money (with idempotency)
+  // Withdraw money
   withdraw: async (accountId, amount, description = '') => {
-    const idempotencyKey = uuidv4();
-    const response = await api.post('/transactions/withdraw',
-      { accountId, amount, description },
-      { headers: { 'Idempotency-Key': idempotencyKey } }
-    );
+    const response = await api.post(`/accounts/${accountId}/withdraw`, {
+      amount,
+      description
+    });
     return response.data;
   },
 
-  // Transfer money (with idempotency)
+  // Transfer money between accounts
   transfer: async (fromAccountId, toAccountId, amount, description = '') => {
     const idempotencyKey = uuidv4();
     const response = await api.post('/transactions/transfer',
@@ -187,8 +214,8 @@ export const transactionService = {
 
   // Get transactions for account (paginated)
   getTransactions: async (accountId, page = 0, size = 20) => {
-    const response = await api.get('/transactions', {
-      params: { accountId, page, size }
+    const response = await api.get(`/transactions/account/${accountId}`, {
+      params: { page, size }
     });
     return response.data;
   },
@@ -201,25 +228,15 @@ export const transactionService = {
 
   // Get recent transactions
   getRecentTransactions: async (accountId, limit = 10) => {
-    const response = await api.get('/transactions/recent', {
-      params: { accountId, limit }
+    const response = await api.get(`/transactions/account/${accountId}/recent`, {
+      params: { limit }
     });
     return response.data;
   },
 
   // Get transaction statistics
   getStats: async (accountId) => {
-    const response = await api.get('/transactions/stats', {
-      params: { accountId }
-    });
-    return response.data;
-  },
-
-  // Get ledger entries for account
-  getLedgerEntries: async (accountId, page = 0, size = 50) => {
-    const response = await api.get('/transactions/ledger', {
-      params: { accountId, page, size }
-    });
+    const response = await api.get(`/transactions/account/${accountId}/stats`);
     return response.data;
   },
 
@@ -230,9 +247,9 @@ export const transactionService = {
   },
 
   // Search transactions
-  searchTransactions: async (filters, page = 0, size = 20) => {
-    const response = await api.post('/transactions/search', filters, {
-      params: { page, size }
+  searchTransactions: async (filters = {}, page = 0, size = 20) => {
+    const response = await api.get('/transactions/search', {
+      params: { ...filters, page, size }
     });
     return response.data;
   }
@@ -324,6 +341,16 @@ export const customerService = {
 
   getCustomerById: async (customerId) => {
     const response = await api.get(`/customers/${customerId}`);
+    return response.data;
+  },
+
+  createCustomer: async (customerData) => {
+    const response = await api.post('/customers', customerData);
+    return response.data;
+  },
+
+  getCustomerByUserId: async (userId) => {
+    const response = await api.get(`/customers/user/${userId}`);
     return response.data;
   }
 };
