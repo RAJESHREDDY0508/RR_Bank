@@ -1,0 +1,143 @@
+# ============================================================
+# RR-Bank Root .gitignore
+# ============================================================
+# Comprehensive ignore rules for the entire monorepo
+# ============================================================
+
+# ===============================================
+# BUILD OUTPUTS
+# ===============================================
+**/target/
+**/build/
+**/out/
+*.jar
+*.war
+*.ear
+*.class
+
+# ===============================================
+# DEPENDENCIES
+# ===============================================
+**/node_modules/
+
+# ===============================================
+# IDE & EDITORS
+# ===============================================
+**/.idea/
+**/.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+.c9/
+*.launch
+
+# ===============================================
+# ENVIRONMENT & SECRETS (CRITICAL!)
+# ===============================================
+.env
+.env.*
+!.env.example
+**/application-local.yml
+**/application-local.properties
+**/application-secret.yml
+**/application-secret.properties
+**/*-secret.yml
+**/*-secret.properties
+
+# SSL/TLS certificates and keys
+*.p12
+*.jks
+*.pem
+*.key
+*.crt
+*.cer
+keystore.*
+truststore.*
+
+# ===============================================
+# LOGS
+# ===============================================
+*.log
+**/logs/
+**/log/
+
+# ===============================================
+# DATABASES & CACHE
+# ===============================================
+*.db
+*.sqlite
+*.sqlite3
+*.mv.db
+*.trace.db
+dump.rdb
+
+# ===============================================
+# OS FILES
+# ===============================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ===============================================
+# TEMPORARY FILES
+# ===============================================
+tmp/
+temp/
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+*.bak
+
+# ===============================================
+# MAVEN
+# ===============================================
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+
+# ===============================================
+# GRADLE
+# ===============================================
+.gradle/
+**/gradle-app.setting
+.gradletasknamecache
+
+# ===============================================
+# FRONTEND SPECIFIC
+# ===============================================
+**/dist/
+**/dist-ssr/
+*.local
+.cache/
+.parcel-cache/
+
+# ===============================================
+# TEST & COVERAGE
+# ===============================================
+**/coverage/
+**/.nyc_output/
+*.lcov
+
+# ===============================================
+# JVM CRASH LOGS
+# ===============================================
+hs_err_pid*
+replay_pid*

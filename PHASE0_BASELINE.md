@@ -202,11 +202,26 @@ docker-compose up -d
 - Actuator: Limited to health, info, prometheus
 
 ### Environment Variables Required
+See `.env.example` files in:
+- `/.env.example` - Project overview
+- `/banking-service/.env.example` - Backend variables
+- `/frontend/.env.example` - Frontend variables
+
 ```
+# Backend (banking-service/.env)
 DB_URL=jdbc:postgresql://localhost:5432/rrbank
 DB_USERNAME=postgres
 DB_PASSWORD=<secure-password>
-JWT_SECRET=<256-bit-secret>
+JWT_SECRET=<512-bit-base64-encoded-secret>
+JWT_EXPIRATION=900000
+JWT_REFRESH_EXPIRATION=86400000
+REDIS_HOST=localhost
+REDIS_PORT=6379
+CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+
+# Frontend (frontend/.env)
+REACT_APP_API_URL=http://localhost:8080/api
+REACT_APP_ENV=development
 ```
 
 ---

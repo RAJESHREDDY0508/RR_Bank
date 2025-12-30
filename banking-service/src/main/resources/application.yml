@@ -1,9 +1,3 @@
-# ============================================================
-# RR-Bank Banking Service - Base Configuration
-# ============================================================
-# This file contains shared configuration for all profiles.
-# Profile-specific settings override these in application-{profile}.yml
-# ============================================================
 
 spring:
   application:
