@@ -1,4 +1,4 @@
-package com.RRBank.banking.gateway;
+package com.rrbank.gateway;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
@@ -39,8 +39,6 @@ public class GatewayResilienceConfiguration {
                 .slidingWindowSize(100)
                 // Record exceptions as failures
                 .recordExceptions(Exception.class)
-                // Ignore specific exceptions
-                // .ignoreExceptions(BusinessException.class)
                 .build();
 
         CircuitBreakerRegistry registry = CircuitBreakerRegistry.of(config);
@@ -72,15 +70,8 @@ public class GatewayResilienceConfiguration {
                 .maxAttempts(3)
                 // Wait duration between retries
                 .waitDuration(Duration.ofMillis(500))
-                // Exponential backoff
-                .intervalFunction(attempt -> {
-                    long waitTime = (long) Math.pow(2, attempt) * 500; // Exponential backoff
-                    return Math.min(waitTime, 5000); // Max 5 seconds
-                })
                 // Retry on specific exceptions
                 .retryExceptions(Exception.class)
-                // Don't retry on specific exceptions
-                // .ignoreExceptions(BusinessException.class)
                 .build();
 
         RetryRegistry registry = RetryRegistry.of(config);

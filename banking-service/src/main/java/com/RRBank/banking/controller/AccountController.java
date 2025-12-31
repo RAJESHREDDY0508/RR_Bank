@@ -1,10 +1,14 @@
 package com.RRBank.banking.controller;
 
 import com.RRBank.banking.dto.*;
-import com.RRBank.banking.security.CustomUserDetails;
+import com.RRBank.banking.entity.Account;
+import com.RRBank.banking.exception.ResourceNotFoundException;
+import com.RRBank.banking.repository.AccountRepository;
 import com.RRBank.banking.service.AccountRequestService;
 import com.RRBank.banking.service.AccountService;
+import com.RRBank.banking.service.OwnershipService;
 import com.RRBank.banking.service.TransactionService;
+import com.RRBank.banking.util.SecurityUtil;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,16 +35,31 @@ public class AccountController {
     private final AccountService accountService;
     private final TransactionService transactionService;
     private final AccountRequestService accountRequestService;
+    private final OwnershipService ownershipService;
+    private final AccountRepository accountRepository;
 
     /**
      * Create new bank account
      * POST /api/accounts
+     * 
+     * ✅ FIX: customerId is now optional - will be auto-detected from authenticated user
      */
     @PostMapping
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
     public ResponseEntity<AccountResponseDto> createAccount(
-            @Valid @RequestBody CreateAccountDto dto) {
-        log.info("REST request to create account for customerId: {}", dto.getCustomerId());
+            @Valid @RequestBody CreateAccountDto dto,
+            Authentication authentication) {
+        
+        // If customerId not provided, resolve it from authenticated user
+        if (dto.getCustomerId() == null) {
+            UUID userId = SecurityUtil.requireUserId(authentication);
+            UUID customerId = accountService.resolveCustomerIdFromUserId(userId);
+            dto.setCustomerId(customerId);
+            log.info("REST request to create account - customerId resolved from user: {}", customerId);
+        } else {
+            log.info("REST request to create account for customerId: {}", dto.getCustomerId());
+        }
+        
         AccountResponseDto response = accountService.createAccount(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
@@ -64,7 +83,7 @@ public class AccountController {
     @GetMapping("/requests")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
     public ResponseEntity<List<AccountRequestResponse>> getMyAccountRequests(Authentication authentication) {
-        String userId = extractUserIdString(authentication);
+        String userId = SecurityUtil.requireUserIdString(authentication);
         log.info("REST request to get account requests for user: {}", userId);
         
         List<AccountRequestResponse> requests = accountRequestService.getUserRequests(userId);
@@ -80,7 +99,7 @@ public class AccountController {
     public ResponseEntity<AccountRequestResponse> submitAccountRequest(
             @Valid @RequestBody AccountOpenRequest request,
             Authentication authentication) {
-        String userId = extractUserIdString(authentication);
+        String userId = SecurityUtil.requireUserIdString(authentication);
         log.info("REST request to submit account request for user: {}", userId);
         
         AccountRequestResponse response = accountRequestService.submitRequest(userId, request);
@@ -96,7 +115,7 @@ public class AccountController {
     public ResponseEntity<AccountRequestResponse> cancelAccountRequest(
             @PathVariable UUID requestId,
             Authentication authentication) {
-        String userId = extractUserIdString(authentication);
+        String userId = SecurityUtil.requireUserIdString(authentication);
         log.info("REST request to cancel account request {} for user: {}", requestId, userId);
         
         AccountRequestResponse response = accountRequestService.cancelRequest(requestId, userId);
@@ -105,23 +124,31 @@ public class AccountController {
 
     /**
      * Deposit money to account
-     * POST /api/accounts/{accountId}/deposit
+     * POST /api/accounts/{accountIdOrNumber}/deposit
+     * 
+     * Accepts either UUID or account number
      */
-    @PostMapping("/{accountId}/deposit")
+    @PostMapping("/{accountIdOrNumber}/deposit")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
     public ResponseEntity<TransactionResponseDto> deposit(
-            @PathVariable UUID accountId,
+            @PathVariable String accountIdOrNumber,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody DepositRequest request,
             Authentication authentication) {
-        log.info("REST request to deposit {} to accountId: {}", request.getAmount(), accountId);
         
-        UUID initiatedBy = extractUserId(authentication);
+        UUID accountId = resolveAccountId(accountIdOrNumber);
+        
+        // Ownership check
+        ownershipService.requireAccountOwnership(accountId, authentication);
+        log.info("REST request to deposit {} to account: {}", request.getAmount(), accountId);
+        
+        UUID initiatedBy = SecurityUtil.requireUserId(authentication);
         
         TransactionResponseDto response = transactionService.deposit(
                 accountId,
                 request.getAmount(),
                 request.getDescription(),
-                null,
+                idempotencyKey,
                 initiatedBy
         );
         
@@ -130,23 +157,31 @@ public class AccountController {
 
     /**
      * Withdraw money from account
-     * POST /api/accounts/{accountId}/withdraw
+     * POST /api/accounts/{accountIdOrNumber}/withdraw
+     * 
+     * Accepts either UUID or account number
      */
-    @PostMapping("/{accountId}/withdraw")
+    @PostMapping("/{accountIdOrNumber}/withdraw")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
     public ResponseEntity<TransactionResponseDto> withdraw(
-            @PathVariable UUID accountId,
+            @PathVariable String accountIdOrNumber,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody WithdrawRequest request,
             Authentication authentication) {
-        log.info("REST request to withdraw {} from accountId: {}", request.getAmount(), accountId);
         
-        UUID initiatedBy = extractUserId(authentication);
+        UUID accountId = resolveAccountId(accountIdOrNumber);
+        
+        // Ownership check
+        ownershipService.requireAccountOwnership(accountId, authentication);
+        log.info("REST request to withdraw {} from account: {}", request.getAmount(), accountId);
+        
+        UUID initiatedBy = SecurityUtil.requireUserId(authentication);
         
         TransactionResponseDto response = transactionService.withdraw(
                 accountId,
                 request.getAmount(),
                 request.getDescription(),
-                null,
+                idempotencyKey,
                 initiatedBy
         );
         
@@ -154,26 +189,22 @@ public class AccountController {
     }
 
     /**
-     * Get account by ID
-     * GET /api/accounts/{id}
+     * Get account by ID or account number
+     * GET /api/accounts/{accountIdOrNumber}
      */
-    @GetMapping("/{id}")
+    @GetMapping("/{accountIdOrNumber}")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
-    public ResponseEntity<AccountResponseDto> getAccountById(@PathVariable UUID id) {
-        log.info("REST request to get account by ID: {}", id);
-        AccountResponseDto response = accountService.getAccountById(id);
-        return ResponseEntity.ok(response);
-    }
-
-    /**
-     * Get account by account number
-     * GET /api/accounts/number/{accountNumber}
-     */
-    @GetMapping("/number/{accountNumber}")
-    @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
-    public ResponseEntity<AccountResponseDto> getAccountByAccountNumber(@PathVariable String accountNumber) {
-        log.info("REST request to get account by number: {}", accountNumber);
-        AccountResponseDto response = accountService.getAccountByAccountNumber(accountNumber);
+    public ResponseEntity<AccountResponseDto> getAccount(
+            @PathVariable String accountIdOrNumber,
+            Authentication authentication) {
+        
+        UUID accountId = resolveAccountId(accountIdOrNumber);
+        
+        // Ownership check
+        ownershipService.requireAccountOwnership(accountId, authentication);
+        log.info("REST request to get account: {}", accountId);
+        
+        AccountResponseDto response = accountService.getAccountById(accountId);
         return ResponseEntity.ok(response);
     }
 
@@ -183,8 +214,14 @@ public class AccountController {
      */
     @GetMapping("/customer/{customerId}")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
-    public ResponseEntity<List<AccountResponseDto>> getAccountsByCustomerId(@PathVariable UUID customerId) {
+    public ResponseEntity<List<AccountResponseDto>> getAccountsByCustomerId(
+            @PathVariable UUID customerId,
+            Authentication authentication) {
+        
+        // Ownership check
+        ownershipService.requireCustomerOwnership(customerId, authentication);
         log.info("REST request to get accounts for customerId: {}", customerId);
+        
         List<AccountResponseDto> accounts = accountService.getAccountsByCustomerId(customerId);
         return ResponseEntity.ok(accounts);
     }
@@ -195,21 +232,33 @@ public class AccountController {
      */
     @GetMapping("/customer/{customerId}/active")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
-    public ResponseEntity<List<AccountResponseDto>> getActiveAccountsByCustomer(@PathVariable UUID customerId) {
+    public ResponseEntity<List<AccountResponseDto>> getActiveAccountsByCustomer(
+            @PathVariable UUID customerId,
+            Authentication authentication) {
+        
+        ownershipService.requireCustomerOwnership(customerId, authentication);
         log.info("REST request to get active accounts for customerId: {}", customerId);
+        
         List<AccountResponseDto> accounts = accountService.getActiveAccountsByCustomer(customerId);
         return ResponseEntity.ok(accounts);
     }
 
     /**
-     * Get account balance (with Redis caching)
-     * GET /api/accounts/{id}/balance
+     * Get account balance
+     * GET /api/accounts/{accountIdOrNumber}/balance
      */
-    @GetMapping("/{id}/balance")
+    @GetMapping("/{accountIdOrNumber}/balance")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
-    public ResponseEntity<BalanceResponseDto> getAccountBalance(@PathVariable UUID id) {
-        log.info("REST request to get balance for accountId: {}", id);
-        BalanceResponseDto response = accountService.getAccountBalance(id);
+    public ResponseEntity<BalanceResponseDto> getAccountBalance(
+            @PathVariable String accountIdOrNumber,
+            Authentication authentication) {
+        
+        UUID accountId = resolveAccountId(accountIdOrNumber);
+        
+        ownershipService.requireAccountOwnership(accountId, authentication);
+        log.info("REST request to get balance for account: {}", accountId);
+        
+        BalanceResponseDto response = accountService.getAccountBalance(accountId);
         return ResponseEntity.ok(response);
     }
 
@@ -219,25 +268,33 @@ public class AccountController {
      */
     @GetMapping("/customer/{customerId}/total-balance")
     @PreAuthorize("hasRole('CUSTOMER') or hasRole('ADMIN')")
-    public ResponseEntity<BigDecimal> getTotalBalanceForCustomer(@PathVariable UUID customerId) {
+    public ResponseEntity<BigDecimal> getTotalBalanceForCustomer(
+            @PathVariable UUID customerId,
+            Authentication authentication) {
+        
+        ownershipService.requireCustomerOwnership(customerId, authentication);
         log.info("REST request to get total balance for customerId: {}", customerId);
+        
         BigDecimal totalBalance = accountService.getTotalBalanceForCustomer(customerId);
         return ResponseEntity.ok(totalBalance);
     }
 
     /**
-     * Update account status
+     * Update account status (Admin only)
      * PUT /api/accounts/{id}/status
      */
     @PutMapping("/{id}/status")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<AccountResponseDto> updateAccountStatus(
-            @PathVariable UUID id,
+            @PathVariable String id,
             @Valid @RequestBody UpdateAccountStatusDto dto,
             Authentication authentication) {
-        log.info("REST request to update status for accountId: {} to {}", id, dto.getStatus());
-        String changedBy = authentication != null ? authentication.getName() : "SYSTEM";
-        AccountResponseDto response = accountService.updateAccountStatus(id, dto, changedBy);
+        
+        UUID accountId = resolveAccountId(id);
+        log.info("REST request to update status for account: {} to {}", accountId, dto.getStatus());
+        
+        String changedBy = SecurityUtil.getUsername(authentication);
+        AccountResponseDto response = accountService.updateAccountStatus(accountId, dto, changedBy);
         return ResponseEntity.ok(response);
     }
 
@@ -278,51 +335,33 @@ public class AccountController {
     }
 
     /**
-     * Get all accounts for admin view (includes customer accounts)
-     * GET /api/accounts/admin/all
-     */
-    @GetMapping("/admin/all")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<AccountResponseDto>> getAllAccountsForAdmin() {
-        log.info("REST request to get all accounts for admin view");
-        List<AccountResponseDto> accounts = accountService.getAllAccounts();
-        return ResponseEntity.ok(accounts);
-    }
-
-    /**
-     * Delete account (Admin only - only if balance is zero and account is closed)
+     * Delete account (Admin only)
      * DELETE /api/accounts/{id}
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteAccount(@PathVariable UUID id) {
-        log.info("REST request to delete account with ID: {}", id);
-        accountService.deleteAccount(id);
+    public ResponseEntity<Void> deleteAccount(@PathVariable String id) {
+        UUID accountId = resolveAccountId(id);
+        log.info("REST request to delete account: {}", accountId);
+        accountService.deleteAccount(accountId);
         return ResponseEntity.noContent().build();
     }
 
     // ========== HELPER METHODS ==========
 
-    private UUID extractUserId(Authentication authentication) {
-        if (authentication == null || authentication.getName() == null) {
-            return null;
-        }
+    /**
+     * Resolve account ID from either UUID string or account number
+     */
+    private UUID resolveAccountId(String accountIdOrNumber) {
+        // Try to parse as UUID first
         try {
-            return UUID.fromString(authentication.getName());
+            return UUID.fromString(accountIdOrNumber);
         } catch (IllegalArgumentException e) {
-            log.warn("Could not parse user ID from authentication: {}", authentication.getName());
-            return null;
+            // Not a UUID, try to find by account number
+            Account account = accountRepository.findByAccountNumber(accountIdOrNumber)
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Account not found: " + accountIdOrNumber));
+            return account.getId();
         }
-    }
-
-    private String extractUserIdString(Authentication authentication) {
-        if (authentication != null) {
-            Object principal = authentication.getPrincipal();
-            if (principal instanceof CustomUserDetails) {
-                return ((CustomUserDetails) principal).getUserId();
-            }
-            return authentication.getName();
-        }
-        return null;
     }
 }

@@ -1,4 +1,4 @@
-package com.RRBank.banking.gateway;
+package com.rrbank.gateway;
 
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -34,11 +34,11 @@ public class GatewayRouteConfiguration {
         routes.put("auth", RouteDefinition.builder()
                 .id("auth-service")
                 .path("/api/auth/**")
-                .serviceUrl("http://localhost:8080")
+                .serviceUrl("lb://BANKING-SERVICE")
                 .description("Authentication and Authorization Service")
                 .circuitBreakerEnabled(true)
                 .retryEnabled(true)
-                .rateLimitEnabled(false) // No rate limit for auth
+                .rateLimitEnabled(false)
                 .timeoutSeconds(5)
                 .build());
         
@@ -46,7 +46,7 @@ public class GatewayRouteConfiguration {
         routes.put("customers", RouteDefinition.builder()
                 .id("customer-service")
                 .path("/api/customers/**")
-                .serviceUrl("http://localhost:8080")
+                .serviceUrl("lb://BANKING-SERVICE")
                 .description("Customer Management Service")
                 .circuitBreakerEnabled(true)
                 .retryEnabled(true)
@@ -58,7 +58,7 @@ public class GatewayRouteConfiguration {
         routes.put("accounts", RouteDefinition.builder()
                 .id("account-service")
                 .path("/api/accounts/**")
-                .serviceUrl("http://localhost:8080")
+                .serviceUrl("lb://BANKING-SERVICE")
                 .description("Account Management Service")
                 .circuitBreakerEnabled(true)
                 .retryEnabled(true)
@@ -70,7 +70,7 @@ public class GatewayRouteConfiguration {
         routes.put("transactions", RouteDefinition.builder()
                 .id("transaction-service")
                 .path("/api/transactions/**")
-                .serviceUrl("http://localhost:8080")
+                .serviceUrl("lb://BANKING-SERVICE")
                 .description("Transaction Processing Service")
                 .circuitBreakerEnabled(true)
                 .retryEnabled(true)
@@ -82,7 +82,7 @@ public class GatewayRouteConfiguration {
         routes.put("payments", RouteDefinition.builder()
                 .id("payment-service")
                 .path("/api/payments/**")
-                .serviceUrl("http://localhost:8080")
+                .serviceUrl("lb://BANKING-SERVICE")
                 .description("Payment Processing Service")
                 .circuitBreakerEnabled(true)
                 .retryEnabled(true)
@@ -90,56 +90,19 @@ public class GatewayRouteConfiguration {
                 .timeoutSeconds(20)
                 .build());
         
-        // Notification Service Routes
-        routes.put("notifications", RouteDefinition.builder()
-                .id("notification-service")
-                .path("/api/notifications/**")
-                .serviceUrl("http://localhost:8080")
-                .description("Notification Management Service")
-                .circuitBreakerEnabled(true)
-                .retryEnabled(false) // Don't retry notifications
-                .rateLimitEnabled(true)
-                .timeoutSeconds(5)
-                .build());
-        
-        // Fraud Detection Service Routes
-        routes.put("fraud", RouteDefinition.builder()
-                .id("fraud-service")
-                .path("/api/fraud/**")
-                .serviceUrl("http://localhost:8080")
-                .description("Fraud Detection Service")
-                .circuitBreakerEnabled(true)
-                .retryEnabled(true)
-                .rateLimitEnabled(true)
-                .timeoutSeconds(10)
-                .build());
-        
         // Statement Service Routes
         routes.put("statements", RouteDefinition.builder()
                 .id("statement-service")
                 .path("/api/statements/**")
-                .serviceUrl("http://localhost:8080")
+                .serviceUrl("lb://BANKING-SERVICE")
                 .description("Statement Generation Service")
                 .circuitBreakerEnabled(true)
-                .retryEnabled(false) // Don't retry statement generation
+                .retryEnabled(false)
                 .rateLimitEnabled(true)
                 .timeoutSeconds(30)
                 .build());
         
-        // Audit Service Routes
-        routes.put("audit", RouteDefinition.builder()
-                .id("audit-service")
-                .path("/api/audit/**")
-                .serviceUrl("http://localhost:8080")
-                .description("Audit Logging Service")
-                .circuitBreakerEnabled(false) // Audit should always work
-                .retryEnabled(false)
-                .rateLimitEnabled(true)
-                .timeoutSeconds(10)
-                .build());
-        
         log.info("Gateway Route Configuration completed - {} routes registered", routes.size());
-        logRoutes();
     }
 
     /**
@@ -157,27 +120,6 @@ public class GatewayRouteConfiguration {
     private boolean matchesPath(String requestPath, String routePath) {
         String pattern = routePath.replace("/**", ".*");
         return requestPath.matches(pattern);
-    }
-
-    /**
-     * Log all configured routes
-     */
-    private void logRoutes() {
-        log.info("=== Gateway Route Mappings ===");
-        routes.forEach((key, route) -> {
-            log.info("  {} -> {} ({})",
-                    route.getPath(),
-                    route.getServiceUrl(),
-                    route.getDescription()
-            );
-            log.info("    Circuit Breaker: {}, Retry: {}, Rate Limit: {}, Timeout: {}s",
-                    route.isCircuitBreakerEnabled(),
-                    route.isRetryEnabled(),
-                    route.isRateLimitEnabled(),
-                    route.getTimeoutSeconds()
-            );
-        });
-        log.info("==============================");
     }
 
     /**

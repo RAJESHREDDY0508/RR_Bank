@@ -209,6 +209,8 @@ public class Transaction {
         DEPOSIT,
         WITHDRAWAL,
         TRANSFER,
+        TRANSFER_OUT,  // Phase 2C.2: Debit side of transfer
+        TRANSFER_IN,   // Phase 2C.2: Credit side of transfer
         PAYMENT,
         FEE,
         INTEREST,

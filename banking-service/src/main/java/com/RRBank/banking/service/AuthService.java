@@ -40,22 +40,22 @@ public class AuthService {
     public AuthResponse register(RegisterRequest request) {
         log.info("Registering new user: {}", request.getUsername());
         
-        // Check if username already exists
+        // Check if username already exists (case-sensitive)
         if (userRepository.existsByUsername(request.getUsername())) {
             log.warn("Registration failed: username '{}' already exists", request.getUsername());
             throw new UserAlreadyExistsException("Username already exists");
         }
         
-        // Check if email already exists
-        if (userRepository.existsByEmail(request.getEmail())) {
+        // Check if email already exists (case-insensitive)
+        if (userRepository.existsByEmailIgnoreCase(request.getEmail())) {
             log.warn("Registration failed: email '{}' already exists", request.getEmail());
             throw new UserAlreadyExistsException("Email already exists");
         }
         
-        // Create new user
+        // Create new user - store email in lowercase for consistency
         User user = User.builder()
             .username(request.getUsername())
-            .email(request.getEmail())
+            .email(request.getEmail().toLowerCase().trim())
             .passwordHash(passwordEncoder.encode(request.getPassword()))
             .firstName(request.getFirstName())
             .lastName(request.getLastName())
@@ -74,7 +74,7 @@ public class AuthService {
         user = userRepository.save(user);
         log.info("User registered successfully: {} (ID: {})", user.getUsername(), user.getUserId());
         
-        // ✅ CRITICAL: Create corresponding Customer record
+        // Create corresponding Customer record
         try {
             Customer customer = Customer.builder()
                 .userId(UUID.fromString(user.getUserId()))
@@ -94,7 +94,6 @@ public class AuthService {
             log.info("Customer record created: {} for user {}", customer.getId(), user.getUserId());
         } catch (Exception e) {
             log.error("Failed to create Customer record for user {}: {}", user.getUserId(), e.getMessage());
-            // Don't fail registration - customer can be created later
         }
         
         // Generate JWT tokens
@@ -116,97 +115,76 @@ public class AuthService {
     
     /**
      * Authenticate user and generate JWT tokens.
+     * Username is case-sensitive, email is case-insensitive.
      */
     @Transactional
     public AuthResponse login(LoginRequest request) {
-        log.info("=== LOGIN ATTEMPT ===");
-        log.info("Attempting login for: '{}'", request.getUsernameOrEmail());
+        log.info("Login attempt for: '{}'", request.getUsernameOrEmail());
         
-        // Find user by username or email
-        User user = userRepository.findByUsername(request.getUsernameOrEmail())
-            .or(() -> userRepository.findByEmail(request.getUsernameOrEmail()))
+        String input = request.getUsernameOrEmail().trim();
+        
+        // Find user by username (case-sensitive) or email (case-insensitive)
+        User user = userRepository.findByUsername(input)
+            .or(() -> userRepository.findByEmailIgnoreCase(input))
             .orElse(null);
         
         if (user == null) {
-            log.warn("LOGIN FAILED: User '{}' not found in database", request.getUsernameOrEmail());
-            
-            // List all users for debugging
-            long userCount = userRepository.count();
-            log.info("Total users in database: {}", userCount);
-            
+            log.warn("Login failed: User '{}' not found", input);
             throw new InvalidCredentialsException("Invalid username or password");
         }
         
-        log.info("User found - ID: {}, Username: {}, Email: {}, Role: {}, Status: {}", 
-                user.getUserId(), user.getUsername(), user.getEmail(), user.getRole(), user.getStatus());
+        log.info("User found - Username: {}, Role: {}, Status: {}", 
+                user.getUsername(), user.getRole(), user.getStatus());
         
         // Check if account is locked
         if (user.isAccountLocked()) {
-            log.warn("LOGIN FAILED: Account '{}' is locked until {}", 
+            log.warn("Login failed: Account '{}' is locked until {}", 
                     user.getUsername(), user.getAccountLockedUntil());
             throw new AccountLockedException(
-                "Account is temporarily locked due to multiple failed login attempts. " +
-                "Please try again after " + user.getAccountLockedUntil()
+                "Account is temporarily locked. Please try again after " + user.getAccountLockedUntil()
             );
         }
         
         // Check if account is active
         if (user.getStatus() != User.UserStatus.ACTIVE) {
-            log.warn("LOGIN FAILED: Account '{}' is not active (status: {})", 
+            log.warn("Login failed: Account '{}' is not active (status: {})", 
                     user.getUsername(), user.getStatus());
             throw new AccountInactiveException(
                 "Account is " + user.getStatus().name().toLowerCase() + ". Please contact support."
             );
         }
         
-        // Verify password manually first for debugging
-        boolean passwordMatches = passwordEncoder.matches(request.getPassword(), user.getPasswordHash());
-        log.info("Manual password verification: {}", passwordMatches ? "MATCH" : "NO MATCH");
-        
-        if (!passwordMatches) {
-            log.warn("LOGIN FAILED: Password does not match for user '{}'", user.getUsername());
-            
-            // Increment failed login attempts
-            int attempts = user.getFailedLoginAttempts() + 1;
-            user.setFailedLoginAttempts(attempts);
-            
-            if (attempts >= 5) {
-                user.setAccountLockedUntil(LocalDateTime.now().plusMinutes(30));
-                log.warn("Account '{}' locked after {} failed attempts", user.getUsername(), attempts);
-            }
-            
-            userRepository.save(user);
+        // Verify password
+        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            log.warn("Login failed: Password mismatch for user '{}'", user.getUsername());
+            handleFailedLogin(user);
             throw new InvalidCredentialsException("Invalid username or password");
         }
         
         try {
-            // Authenticate with Spring Security
-            log.info("Attempting Spring Security authentication...");
+            // Authenticate with Spring Security (use username, not input)
             authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
-                    user.getUsername(),  // Use username, not the input
+                    user.getUsername(),
                     request.getPassword()
                 )
             );
-            log.info("Spring Security authentication successful");
             
-            // Authentication successful - reset failed attempts
+            // Reset failed attempts on successful login
             if (user.getFailedLoginAttempts() > 0) {
                 user.setFailedLoginAttempts(0);
                 user.setAccountLockedUntil(null);
             }
             
-            // Update last login timestamp
+            // Update last login
             user.setLastLogin(LocalDateTime.now());
             userRepository.save(user);
             
-            log.info("User '{}' logged in successfully", user.getUsername());
+            log.info("User '{}' logged in successfully with role: {}", user.getUsername(), user.getRole());
             
             // Generate JWT tokens
             String accessToken = jwtTokenProvider.generateToken(user);
             String refreshToken = jwtTokenProvider.generateRefreshToken(user);
-            
-            log.info("JWT tokens generated successfully");
             
             return AuthResponse.builder()
                 .accessToken(accessToken)
@@ -221,24 +199,22 @@ public class AuthService {
                 .build();
                 
         } catch (BadCredentialsException e) {
-            log.error("Spring Security BadCredentialsException: {}", e.getMessage());
-            
-            // Increment failed login attempts
-            int attempts = user.getFailedLoginAttempts() + 1;
-            user.setFailedLoginAttempts(attempts);
-            
-            if (attempts >= 5) {
-                user.setAccountLockedUntil(LocalDateTime.now().plusMinutes(30));
-                log.warn("Account '{}' locked after {} failed attempts", user.getUsername(), attempts);
-            }
-            
-            userRepository.save(user);
+            log.error("BadCredentialsException for user '{}': {}", user.getUsername(), e.getMessage());
+            handleFailedLogin(user);
             throw new InvalidCredentialsException("Invalid username or password");
-            
-        } catch (Exception e) {
-            log.error("Unexpected authentication error: {} - {}", e.getClass().getSimpleName(), e.getMessage());
-            throw new InvalidCredentialsException("Authentication failed: " + e.getMessage());
         }
+    }
+    
+    private void handleFailedLogin(User user) {
+        int attempts = user.getFailedLoginAttempts() + 1;
+        user.setFailedLoginAttempts(attempts);
+        
+        if (attempts >= 5) {
+            user.setAccountLockedUntil(LocalDateTime.now().plusMinutes(30));
+            log.warn("Account '{}' locked after {} failed attempts", user.getUsername(), attempts);
+        }
+        
+        userRepository.save(user);
     }
     
     /**
@@ -247,35 +223,23 @@ public class AuthService {
     public AuthResponse refreshToken(String refreshToken) {
         log.debug("Attempting to refresh token");
         
-        // Validate refresh token
         if (!jwtTokenProvider.validateToken(refreshToken)) {
-            log.warn("Token refresh failed: invalid refresh token");
             throw new InvalidTokenException("Invalid or expired refresh token");
         }
         
-        // Verify it's a refresh token (not access token)
         if (!jwtTokenProvider.isRefreshToken(refreshToken)) {
-            log.warn("Token refresh failed: provided token is not a refresh token");
             throw new InvalidTokenException("Invalid token type. Please provide a refresh token.");
         }
         
-        // Get username from token
         String username = jwtTokenProvider.getUsernameFromToken(refreshToken);
         
-        // Find user
         User user = userRepository.findByUsername(username)
-            .orElseThrow(() -> {
-                log.warn("Token refresh failed: user '{}' not found", username);
-                return new ResourceNotFoundException("User not found");
-            });
+            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         
-        // Check if account is still active
         if (user.getStatus() != User.UserStatus.ACTIVE) {
-            log.warn("Token refresh failed: account '{}' is not active", username);
             throw new AccountInactiveException("Account is no longer active");
         }
         
-        // Generate new access token
         String newAccessToken = jwtTokenProvider.generateToken(user);
         
         log.info("Token refreshed successfully for user: {}", username);
@@ -293,9 +257,6 @@ public class AuthService {
             .build();
     }
     
-    /**
-     * Logout user (invalidate tokens).
-     */
     public void logout(String userId) {
         log.info("User logged out: {}", userId);
     }

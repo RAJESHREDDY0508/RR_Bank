@@ -102,6 +102,27 @@ public class IdempotencyService {
         }
     }
 
+    /**
+     * Store a new idempotency record after successful operation
+     */
+    @Transactional
+    public void storeRecord(String idempotencyKey, String resourceId, String resourceType) {
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+            return;
+        }
+        
+        IdempotencyRecord record = IdempotencyRecord.builder()
+            .idempotencyKey(idempotencyKey)
+            .requestHash(resourceType + ":" + resourceId)
+            .status(IdempotencyRecord.Status.COMPLETED)
+            .transactionId(UUID.fromString(resourceId))
+            .expiresAt(LocalDateTime.now().plusHours(DEFAULT_EXPIRY_HOURS))
+            .build();
+        
+        idempotencyRecordRepository.save(record);
+        log.debug("Stored idempotency record for key: {}", idempotencyKey);
+    }
+
     @Scheduled(cron = "0 0 */6 * * *")
     @Transactional
     public void cleanupExpiredRecords() {

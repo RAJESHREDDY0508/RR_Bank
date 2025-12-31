@@ -1,0 +1,385 @@
+# ============================================================
+# RR-Bank Microservices - Production Docker Compose
+# ============================================================
+# Architecture: 8 Microservices + API Gateway + Infrastructure
+# ============================================================
+
+version: '3.8'
+
+services:
+  # ============================================================
+  # INFRASTRUCTURE
+  # ============================================================
+  
+  postgres:
+    image: postgres:15-alpine
+    container_name: rrbank-postgres
+    environment:
+      POSTGRES_USER: ${DB_USERNAME:-rrbank}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-rrbank_secret}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-rrbank}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - rrbank-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: rrbank-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - rrbank-network
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: rrbank-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - rrbank-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: rrbank-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    depends_on:
+      - zookeeper
+    networks:
+      - rrbank-network
+
+  # ============================================================
+  # MICROSERVICES
+  # ============================================================
+
+  # Auth Service (8081)
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: rrbank-auth
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8081
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-rrbank}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-rrbank_secret}
+      SPRING_REDIS_HOST: redis
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:-rrbank-jwt-secret-key-minimum-32-characters-long}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - rrbank-network
+
+  # Customer Service (8082)
+  customer-service:
+    build:
+      context: ./services/customer-service
+      dockerfile: Dockerfile
+    container_name: rrbank-customer
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8082
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/customer_db
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-rrbank}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-rrbank_secret}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:-rrbank-jwt-secret-key-minimum-32-characters-long}
+      AUTH_SERVICE_URL: http://auth-service:8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - rrbank-network
+
+  # Account Service (8083)
+  account-service:
+    build:
+      context: ./services/account-service
+      dockerfile: Dockerfile
+    container_name: rrbank-account
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8083
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/account_db
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-rrbank}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-rrbank_secret}
+      SPRING_REDIS_HOST: redis
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:-rrbank-jwt-secret-key-minimum-32-characters-long}
+      LEDGER_SERVICE_URL: http://ledger-service:8085
+      CUSTOMER_SERVICE_URL: http://customer-service:8082
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ledger-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - rrbank-network
+
+  # Transaction Service (8084)
+  transaction-service:
+    build:
+      context: ./services/transaction-service
+      dockerfile: Dockerfile
+    container_name: rrbank-transaction
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8084
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/transaction_db
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-rrbank}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-rrbank_secret}
+      SPRING_REDIS_HOST: redis
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:-rrbank-jwt-secret-key-minimum-32-characters-long}
+      LEDGER_SERVICE_URL: http://ledger-service:8085
+      ACCOUNT_SERVICE_URL: http://account-service:8083
+      FRAUD_SERVICE_URL: http://fraud-service:8087
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ledger-service:
+        condition: service_healthy
+      account-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - rrbank-network
+
+  # Ledger Service (8085) - Source of Truth
+  ledger-service:
+    build:
+      context: ./services/ledger-service
+      dockerfile: Dockerfile
+    container_name: rrbank-ledger
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8085
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ledger_db
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-rrbank}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-rrbank_secret}
+      SPRING_REDIS_HOST: redis
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_TOKEN:-internal-service-token-secret}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - rrbank-network
+
+  # Notification Service (8086)
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: rrbank-notification
+    ports:
+      - "8086:8086"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8086
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notification_db
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-rrbank}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-rrbank_secret}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_SECRET: ${JWT_SECRET:-rrbank-jwt-secret-key-minimum-32-characters-long}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - rrbank-network
+
+  # Audit Service (8088)
+  audit-service:
+    build:
+      context: ./services/audit-service
+      dockerfile: Dockerfile
+    container_name: rrbank-audit
+    ports:
+      - "8088:8088"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8088
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/audit_db
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-rrbank}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-rrbank_secret}
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_TOKEN:-internal-service-token-secret}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - rrbank-network
+
+  # Fraud Service (8087)
+  fraud-service:
+    build:
+      context: ./services/fraud-service
+      dockerfile: Dockerfile
+    container_name: rrbank-fraud
+    ports:
+      - "8087:8087"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8087
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/fraud_db
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-rrbank}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-rrbank_secret}
+      SPRING_REDIS_HOST: redis
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_TOKEN:-internal-service-token-secret}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8087/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - rrbank-network
+
+  # API Gateway (8080)
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: rrbank-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8080
+      JWT_SECRET: ${JWT_SECRET:-rrbank-jwt-secret-key-minimum-32-characters-long}
+      AUTH_SERVICE_URL: http://auth-service:8081
+      CUSTOMER_SERVICE_URL: http://customer-service:8082
+      ACCOUNT_SERVICE_URL: http://account-service:8083
+      TRANSACTION_SERVICE_URL: http://transaction-service:8084
+      LEDGER_SERVICE_URL: http://ledger-service:8085
+      NOTIFICATION_SERVICE_URL: http://notification-service:8086
+      FRAUD_SERVICE_URL: http://fraud-service:8087
+      AUDIT_SERVICE_URL: http://audit-service:8088
+    depends_on:
+      auth-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - rrbank-network
+
+  # Frontend (3000)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: http://localhost:8080
+    container_name: rrbank-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - rrbank-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  rrbank-network:
+    driver: bridge

@@ -107,6 +107,11 @@ public interface PaymentRepository extends JpaRepository<Payment, UUID> {
                                                @Param("limit") int limit);
 
     /**
+     * Find payment by idempotency key
+     */
+    Optional<Payment> findByIdempotencyKey(String idempotencyKey);
+
+    /**
      * Search payments by payee name
      */
     @Query("SELECT p FROM Payment p WHERE LOWER(p.payeeName) LIKE LOWER(CONCAT('%', :search, '%')) " +

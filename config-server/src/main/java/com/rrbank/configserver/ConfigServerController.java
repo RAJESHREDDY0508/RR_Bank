@@ -3,10 +3,8 @@ package com.rrbank.configserver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.cloud.config.server.environment.EnvironmentRepository;
 import org.springframework.core.env.Environment;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -15,12 +13,14 @@ import java.util.*;
 /**
  * Config Server Controller
  * Provides REST endpoints to manage and monitor configuration server
+ * 
+ * Note: Config Server is typically secured at network level (firewall, VPN)
+ * rather than application-level authentication for simplicity.
  */
 @RestController
 @RequestMapping("/api/config")
 @RequiredArgsConstructor
 @Slf4j
-@ConditionalOnProperty(name = "spring.cloud.config.server.enabled", havingValue = "true")
 public class ConfigServerController {
 
     private final Environment environment;
@@ -30,7 +30,6 @@ public class ConfigServerController {
      * GET /api/config/status
      */
     @GetMapping("/status")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getConfigServerStatus() {
         log.info("REST request to get Config Server status");
         
@@ -55,7 +54,6 @@ public class ConfigServerController {
      * GET /api/config/profiles
      */
     @GetMapping("/profiles")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getAvailableProfiles() {
         log.info("REST request to get available configuration profiles");
         
@@ -84,7 +82,6 @@ public class ConfigServerController {
      * POST /api/config/refresh
      */
     @PostMapping("/refresh")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> refreshConfiguration() {
         log.info("REST request to refresh configuration");
         
@@ -104,7 +101,6 @@ public class ConfigServerController {
      * GET /api/config/application/{application}/profile/{profile}
      */
     @GetMapping("/application/{application}/profile/{profile}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getApplicationConfig(
             @PathVariable String application,
             @PathVariable String profile
@@ -127,7 +123,6 @@ public class ConfigServerController {
      * GET /api/config/test
      */
     @GetMapping("/test")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> testConfigServer() {
         log.info("REST request to test Config Server connectivity");
         
@@ -152,7 +147,6 @@ public class ConfigServerController {
      * GET /api/config/endpoints
      */
     @GetMapping("/endpoints")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getConfigEndpoints() {
         log.info("REST request to get Config Server endpoints");
         

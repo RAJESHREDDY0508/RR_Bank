@@ -1,7 +1,7 @@
 package com.RRBank.banking.security;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -30,35 +30,24 @@ import java.util.List;
  * Configures JWT authentication, authorization, and CORS
  * 
  * PUBLIC ENDPOINTS (no auth required):
- * - /api/auth/** (register, login, refresh, health)
+ * - /api/auth/register, /api/auth/login, /api/auth/refresh, /api/auth/health
  * - /actuator/health, /actuator/info
  * - Swagger UI and OpenAPI docs
- * - Static resources
  */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
 @RequiredArgsConstructor
+@Slf4j
 public class SecurityConfig {
     
     private final CustomUserDetailsService userDetailsService;
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     
-    // CORS configuration from application.yml
-    @Value("${cors.allowed-origins:http://localhost:3000,http://localhost:5173}")
-    private String allowedOriginsString;
-    
-    @Value("${cors.allowed-methods:GET,POST,PUT,DELETE,OPTIONS,PATCH}")
-    private String allowedMethodsString;
-    
-    @Value("${cors.allowed-headers:*}")
-    private String allowedHeaders;
-    
-    @Value("${cors.allow-credentials:true}")
-    private boolean allowCredentials;
-    
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        log.info("Configuring Security Filter Chain...");
+        
         http
                 // Disable CSRF for stateless JWT authentication
                 .csrf(AbstractHttpConfigurer::disable)
@@ -66,23 +55,31 @@ public class SecurityConfig {
                 // Enable CORS with custom configuration
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 
-                // Stateless session management (no server-side sessions)
+                // Stateless session management
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
                 
                 // Authorization rules
                 .authorizeHttpRequests(auth -> auth
-                        // ✅ CRITICAL: Allow OPTIONS preflight requests for CORS
+                        // ✅ Allow OPTIONS preflight requests
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         
-                        // ✅ Public endpoints - Auth (register, login, refresh)
-                        .requestMatchers("/api/auth/**").permitAll()
+                        // ✅ Public auth endpoints (specific paths, NOT /api/auth/**)
+                        .requestMatchers("/api/auth/register").permitAll()
+                        .requestMatchers("/api/auth/login").permitAll()
+                        .requestMatchers("/api/auth/refresh").permitAll()
+                        .requestMatchers("/api/auth/health").permitAll()
+                        .requestMatchers("/api/auth/forgot-password").permitAll()
+                        .requestMatchers("/api/auth/reset-password").permitAll()
                         
-                        // ✅ Public endpoints - Static resources
+                        // 🔒 /api/auth/me requires authentication (user info endpoint)
+                        .requestMatchers("/api/auth/me").authenticated()
+                        
+                        // ✅ Static resources
                         .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                         
-                        // ✅ Public endpoints - OpenAPI / Swagger Documentation
+                        // ✅ Swagger/OpenAPI
                         .requestMatchers(
                                 "/swagger-ui.html",
                                 "/swagger-ui/**",
@@ -92,37 +89,39 @@ public class SecurityConfig {
                                 "/webjars/**"
                         ).permitAll()
                         
-                        // ✅ Public endpoints - Basic health and info
-                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        // ✅ Actuator health endpoints
+                        .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers("/actuator/health").permitAll()
+                        .requestMatchers("/actuator/health/**").permitAll()
+                        .requestMatchers("/actuator/info").permitAll()
                         
-                        // 🔒 Admin only - Health details, metrics, prometheus
-                        .requestMatchers("/actuator/health/**", "/actuator/prometheus", "/actuator/metrics/**").hasRole("ADMIN")
-                        
-                        // 🚫 Blocked - All other actuator endpoints
-                        .requestMatchers("/actuator/**").denyAll()
-                        
-                        // ✅ H2 Console - Only for development
+                        // ✅ H2 Console (development only)
                         .requestMatchers("/h2-console/**").permitAll()
                         
-                        // 🔒 Protected endpoints - CUSTOMER and ADMIN roles
+                        // 🔒 Admin-only endpoints
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        
+                        // 🔒 Protected endpoints - CUSTOMER and ADMIN
                         .requestMatchers("/api/accounts/**").hasAnyRole("CUSTOMER", "ADMIN")
                         .requestMatchers("/api/transactions/**").hasAnyRole("CUSTOMER", "ADMIN")
                         .requestMatchers("/api/transfers/**").hasAnyRole("CUSTOMER", "ADMIN")
                         .requestMatchers("/api/customers/**").hasAnyRole("CUSTOMER", "ADMIN")
-                        
-                        // 🔒 Admin-only endpoints
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/payments/**").hasAnyRole("CUSTOMER", "ADMIN")
+                        .requestMatchers("/api/statements/**").hasAnyRole("CUSTOMER", "ADMIN")
+                        .requestMatchers("/api/payees/**").hasAnyRole("CUSTOMER", "ADMIN")
+                        .requestMatchers("/api/disputes/**").hasAnyRole("CUSTOMER", "ADMIN")
                         
                         // 🔒 All other requests require authentication
                         .anyRequest().authenticated()
                 )
                 
-                // Custom authentication provider
+                // Authentication provider
                 .authenticationProvider(authenticationProvider())
                 
-                // Add JWT filter before UsernamePasswordAuthenticationFilter
+                // JWT filter
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         
+        log.info("Security Filter Chain configured successfully");
         return http.build();
     }
     
@@ -145,49 +144,42 @@ public class SecurityConfig {
     }
     
     /**
-     * CORS Configuration
-     * 
-     * Allows cross-origin requests from configured frontend origins.
-     * Critical for React/Vite dev server on different port.
+     * CORS Configuration - Allow all origins for development
      */
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+        log.info("Configuring CORS for Banking Service...");
+        
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // Parse allowed origins from comma-separated string
-        List<String> origins = Arrays.asList(allowedOriginsString.split(","));
-        configuration.setAllowedOrigins(origins);
+        // Allow all origins for development
+        configuration.setAllowedOriginPatterns(List.of("*"));
         
-        // Parse allowed methods from comma-separated string
-        List<String> methods = Arrays.asList(allowedMethodsString.split(","));
-        configuration.setAllowedMethods(methods);
+        // Allow all HTTP methods
+        configuration.setAllowedMethods(Arrays.asList(
+                "GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"
+        ));
         
-        // Allow all headers (or parse from config)
-        if ("*".equals(allowedHeaders)) {
-            configuration.setAllowedHeaders(List.of("*"));
-        } else {
-            configuration.setAllowedHeaders(Arrays.asList(allowedHeaders.split(",")));
-        }
+        // Allow all headers
+        configuration.setAllowedHeaders(List.of("*"));
         
-        // Allow credentials (cookies, authorization headers)
-        configuration.setAllowCredentials(allowCredentials);
+        // Allow credentials
+        configuration.setAllowCredentials(true);
         
-        // Expose headers that frontend might need
+        // Exposed headers
         configuration.setExposedHeaders(Arrays.asList(
                 "Authorization",
                 "Content-Type",
-                "X-Requested-With",
-                "Accept",
-                "Origin",
-                "Access-Control-Request-Method",
-                "Access-Control-Request-Headers"
+                "X-Correlation-ID"
         ));
         
-        // Cache preflight response for 1 hour
+        // Cache preflight for 1 hour
         configuration.setMaxAge(3600L);
         
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
+        
+        log.info("CORS configured - All origins allowed for development");
         
         return source;
     }

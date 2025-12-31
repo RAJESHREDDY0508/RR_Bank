@@ -3,11 +3,14 @@ package com.RRBank.banking.service;
 import com.RRBank.banking.dto.*;
 import com.RRBank.banking.entity.Account;
 import com.RRBank.banking.entity.Payment;
+import com.RRBank.banking.entity.Transaction;
 import com.RRBank.banking.event.*;
 import com.RRBank.banking.exception.ResourceNotFoundException;
 import com.RRBank.banking.repository.AccountRepository;
 import com.RRBank.banking.repository.PaymentRepository;
+import com.RRBank.banking.repository.TransactionRepository;
 import com.RRBank.banking.util.PaymentReferenceGenerator;
+import com.RRBank.banking.util.TransactionReferenceGenerator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,12 +19,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
  * Payment Service
  * Business logic for bill and merchant payments
+ * 
+ * Phase 2C.1: Payments create Transaction records for statements
+ * Phase 2B: Optional idempotency support
  */
 @Service
 @Slf4j
@@ -29,9 +36,12 @@ public class PaymentService {
 
     private final PaymentRepository paymentRepository;
     private final AccountRepository accountRepository;
+    private final TransactionRepository transactionRepository;
     private final PaymentGatewayService gatewayService;
     private final PaymentReferenceGenerator referenceGenerator;
+    private final TransactionReferenceGenerator transactionReferenceGenerator;
     private final AccountService accountService;
+    private final IdempotencyService idempotencyService;
     
     @Autowired(required = false)
     private PaymentEventProducer eventProducer;
@@ -39,23 +49,41 @@ public class PaymentService {
     @Autowired
     public PaymentService(PaymentRepository paymentRepository,
                          AccountRepository accountRepository,
+                         TransactionRepository transactionRepository,
                          PaymentGatewayService gatewayService,
                          PaymentReferenceGenerator referenceGenerator,
-                         AccountService accountService) {
+                         TransactionReferenceGenerator transactionReferenceGenerator,
+                         AccountService accountService,
+                         IdempotencyService idempotencyService) {
         this.paymentRepository = paymentRepository;
         this.accountRepository = accountRepository;
+        this.transactionRepository = transactionRepository;
         this.gatewayService = gatewayService;
         this.referenceGenerator = referenceGenerator;
+        this.transactionReferenceGenerator = transactionReferenceGenerator;
         this.accountService = accountService;
+        this.idempotencyService = idempotencyService;
     }
 
     /**
      * Process bill payment
+     * 
+     * Phase 2B: Optional idempotency - if key provided, check for duplicate
+     * Phase 2C.1: Create Transaction record for statement inclusion
      */
     @Transactional
-    public PaymentResponseDto processBillPayment(BillPaymentRequestDto request, UUID initiatedBy) {
+    public PaymentResponseDto processBillPayment(BillPaymentRequestDto request, String idempotencyKey, UUID initiatedBy) {
         log.info("Processing bill payment for account: {}, payee: {}", 
                 request.getAccountId(), request.getPayeeName());
+
+        // Phase 2B: Idempotency check
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            Optional<PaymentResponseDto> existingResponse = checkIdempotency(idempotencyKey, request);
+            if (existingResponse.isPresent()) {
+                log.info("Returning existing payment for idempotency key: {}", idempotencyKey);
+                return existingResponse.get();
+            }
+        }
 
         // Step 1: Validate account exists and is active
         Account account = validateAccount(request.getAccountId());
@@ -87,6 +115,7 @@ public class PaymentService {
                 .description(request.getDescription())
                 .scheduledDate(request.getScheduledDate() != null ? request.getScheduledDate() : LocalDate.now())
                 .initiatedBy(initiatedBy)
+                .idempotencyKey(idempotencyKey)
                 .build();
 
         payment = paymentRepository.save(payment);
@@ -108,8 +137,15 @@ public class PaymentService {
             payment.setStatus(Payment.PaymentStatus.PROCESSING);
             payment = paymentRepository.save(payment);
 
+            // Get balance before
+            BigDecimal balanceBefore = account.getBalance();
+
             // Debit account
             accountService.debitAccount(account.getId(), request.getAmount(), payment.getId().toString());
+
+            // Get balance after
+            Account updatedAccount = accountRepository.findById(account.getId()).orElse(account);
+            BigDecimal balanceAfter = updatedAccount.getBalance();
 
             // Process through payment gateway
             PaymentGatewayService.GatewayResponse gatewayResponse = gatewayService.processBillPayment(
@@ -125,10 +161,18 @@ public class PaymentService {
                 payment.setGatewayResponse(gatewayResponse.getResponseMessage());
                 payment = paymentRepository.save(payment);
                 
+                // Phase 2C.1: Create Transaction record for statements
+                createPaymentTransaction(payment, account, balanceBefore, balanceAfter, initiatedBy);
+                
                 log.info("Bill payment completed successfully: {}", payment.getId());
                 
                 // Publish Payment Completed Event
                 publishPaymentCompletedEvent(payment);
+                
+                // Store idempotency record
+                if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                    storeIdempotencyRecord(idempotencyKey, payment);
+                }
                 
                 return enrichPaymentResponse(payment);
             } else {
@@ -169,11 +213,23 @@ public class PaymentService {
 
     /**
      * Process merchant payment
+     * 
+     * Phase 2B: Optional idempotency
+     * Phase 2C.1: Create Transaction record
      */
     @Transactional
-    public PaymentResponseDto processMerchantPayment(MerchantPaymentRequestDto request, UUID initiatedBy) {
+    public PaymentResponseDto processMerchantPayment(MerchantPaymentRequestDto request, String idempotencyKey, UUID initiatedBy) {
         log.info("Processing merchant payment for account: {}, merchant: {}", 
                 request.getAccountId(), request.getMerchantName());
+
+        // Phase 2B: Idempotency check
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            Optional<Payment> existingPayment = paymentRepository.findByIdempotencyKey(idempotencyKey);
+            if (existingPayment.isPresent()) {
+                log.info("Returning existing payment for idempotency key: {}", idempotencyKey);
+                return enrichPaymentResponse(existingPayment.get());
+            }
+        }
 
         // Step 1: Validate account
         Account account = validateAccount(request.getAccountId());
@@ -204,6 +260,7 @@ public class PaymentService {
                 .description(request.getDescription())
                 .scheduledDate(LocalDate.now())
                 .initiatedBy(initiatedBy)
+                .idempotencyKey(idempotencyKey)
                 .build();
 
         payment = paymentRepository.save(payment);
@@ -217,8 +274,15 @@ public class PaymentService {
             payment.setStatus(Payment.PaymentStatus.PROCESSING);
             payment = paymentRepository.save(payment);
 
+            // Get balance before
+            BigDecimal balanceBefore = account.getBalance();
+
             // Debit account
             accountService.debitAccount(account.getId(), request.getAmount(), payment.getId().toString());
+
+            // Get balance after
+            Account updatedAccount = accountRepository.findById(account.getId()).orElse(account);
+            BigDecimal balanceAfter = updatedAccount.getBalance();
 
             // Process through payment gateway
             PaymentGatewayService.GatewayResponse gatewayResponse = gatewayService.processMerchantPayment(
@@ -233,9 +297,17 @@ public class PaymentService {
                 payment.setGatewayResponse(gatewayResponse.getResponseMessage());
                 payment = paymentRepository.save(payment);
                 
+                // Phase 2C.1: Create Transaction record for statements
+                createPaymentTransaction(payment, account, balanceBefore, balanceAfter, initiatedBy);
+                
                 log.info("Merchant payment completed successfully: {}", payment.getId());
                 
                 publishPaymentCompletedEvent(payment);
+                
+                // Store idempotency record
+                if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                    storeIdempotencyRecord(idempotencyKey, payment);
+                }
                 
                 return enrichPaymentResponse(payment);
             } else {
@@ -271,6 +343,79 @@ public class PaymentService {
             
             throw new IllegalStateException("Payment processing failed: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Phase 2C.1: Create Transaction record for payment
+     * This ensures payments appear in account statements
+     */
+    private void createPaymentTransaction(Payment payment, Account account, 
+                                          BigDecimal balanceBefore, BigDecimal balanceAfter, 
+                                          UUID initiatedBy) {
+        String transactionRef = transactionReferenceGenerator.generateTransactionReferenceWithType("PAYMENT");
+        
+        Transaction transaction = Transaction.builder()
+                .transactionReference(transactionRef)
+                .fromAccountId(account.getId())
+                .fromAccountNumber(account.getAccountNumber())
+                .transactionType(Transaction.TransactionType.PAYMENT)
+                .amount(payment.getAmount())
+                .currency(payment.getCurrency())
+                .status(Transaction.TransactionStatus.COMPLETED)
+                .description(String.format("Payment to %s - %s", 
+                        payment.getPayeeName(), 
+                        payment.getDescription() != null ? payment.getDescription() : payment.getPaymentReference()))
+                .merchantName(payment.getPayeeName())
+                .initiatedBy(initiatedBy)
+                .balanceBefore(balanceBefore)
+                .balanceAfter(balanceAfter)
+                .build();
+        
+        transaction.markCompleted();
+        transactionRepository.save(transaction);
+        
+        log.info("Created transaction {} for payment {}", transactionRef, payment.getPaymentReference());
+    }
+
+    /**
+     * Phase 2B: Check idempotency
+     */
+    private Optional<PaymentResponseDto> checkIdempotency(String idempotencyKey, BillPaymentRequestDto request) {
+        Optional<Payment> existingPayment = paymentRepository.findByIdempotencyKey(idempotencyKey);
+        if (existingPayment.isPresent()) {
+            Payment payment = existingPayment.get();
+            // Verify request matches (basic check)
+            if (payment.getAmount().compareTo(request.getAmount()) == 0 
+                    && payment.getPayeeName().equals(request.getPayeeName())) {
+                return Optional.of(enrichPaymentResponse(payment));
+            } else {
+                // Mismatch - 409 Conflict
+                throw new IllegalStateException("Idempotency key already used with different request parameters");
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Phase 2B: Store idempotency record
+     */
+    private void storeIdempotencyRecord(String idempotencyKey, Payment payment) {
+        try {
+            idempotencyService.storeRecord(idempotencyKey, payment.getId().toString(), "PAYMENT");
+        } catch (Exception e) {
+            log.warn("Failed to store idempotency record: {}", e.getMessage());
+        }
+    }
+
+    // Keep backward compatible method signature
+    @Transactional
+    public PaymentResponseDto processBillPayment(BillPaymentRequestDto request, UUID initiatedBy) {
+        return processBillPayment(request, null, initiatedBy);
+    }
+
+    @Transactional
+    public PaymentResponseDto processMerchantPayment(MerchantPaymentRequestDto request, UUID initiatedBy) {
+        return processMerchantPayment(request, null, initiatedBy);
     }
 
     /**

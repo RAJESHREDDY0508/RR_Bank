@@ -17,7 +17,7 @@ import java.util.UUID;
  * Create Account Request DTO
  * Used when creating a new bank account
  * 
- * Example JSON:
+ * Example JSON (with customerId - for admin/backward compatibility):
  * {
  *   "customerId": "550e8400-e29b-41d4-a716-446655440000",
  *   "accountType": "SAVINGS",
@@ -25,7 +25,16 @@ import java.util.UUID;
  *   "currency": "USD"
  * }
  * 
+ * Example JSON (without customerId - auto-detected from authenticated user):
+ * {
+ *   "accountType": "SAVINGS",
+ *   "initialBalance": 1000.00,
+ *   "currency": "USD"
+ * }
+ * 
  * Valid account types: SAVINGS, CHECKING, CREDIT, BUSINESS
+ * 
+ * ✅ FIX: Made customerId optional - will be auto-detected from authenticated user if not provided
  */
 @Data
 @NoArgsConstructor
@@ -33,7 +42,7 @@ import java.util.UUID;
 @Builder
 public class CreateAccountDto {
 
-    @NotNull(message = "Customer ID is required")
+    // ✅ FIX: Made customerId optional - will be resolved from authenticated user if not provided
     @JsonProperty("customerId")
     private UUID customerId;
 

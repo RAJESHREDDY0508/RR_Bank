@@ -48,6 +48,15 @@ public class AdminController {
 
     // ==================== DASHBOARD ====================
 
+    /**
+     * ✅ FIX: Added /api/admin/dashboard alias for frontend compatibility
+     * GET /api/admin/dashboard
+     */
+    @GetMapping("/dashboard")
+    public ResponseEntity<Map<String, Object>> getDashboard() {
+        return getDashboardMetrics();
+    }
+
     @GetMapping("/dashboard/metrics")
     public ResponseEntity<Map<String, Object>> getDashboardMetrics() {
         log.info("REST request to get dashboard metrics");

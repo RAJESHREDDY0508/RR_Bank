@@ -12,7 +12,6 @@ import com.RRBank.banking.repository.StatementRepository;
 import com.RRBank.banking.repository.TransactionRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +26,10 @@ import java.util.stream.Collectors;
 /**
  * Statement Service
  * Generates and manages account statements
+ * 
+ * Phase 2C.3: Statement generation is SYNCHRONOUS (no @Async)
+ * - generatedBy is correctly extracted from authentication in controller
+ * - No random UUID fallback
  */
 @Service
 @Slf4j
@@ -59,12 +62,20 @@ public class StatementService {
 
     /**
      * Generate statement for account
+     * 
+     * Phase 2C.3: This method is SYNCHRONOUS (no @Async annotation)
+     * - Statement generation returns immediately with the result
+     * - generatedBy must be a valid user ID (no random UUID fallback)
      */
-    @Async
     @Transactional
     public StatementResponseDto generateStatement(GenerateStatementRequestDto request, UUID generatedBy) {
-        log.info("Generating statement for account: {}, period: {} to {}", 
-                request.getAccountId(), request.getStartDate(), request.getEndDate());
+        log.info("Generating statement for account: {}, period: {} to {}, generatedBy: {}", 
+                request.getAccountId(), request.getStartDate(), request.getEndDate(), generatedBy);
+
+        // Validate generatedBy is provided (Phase 2C.3 - no fallback)
+        if (generatedBy == null) {
+            throw new IllegalArgumentException("generatedBy user ID is required for statement generation");
+        }
 
         // Validate account
         Account account = accountRepository.findById(request.getAccountId())
@@ -97,15 +108,16 @@ public class StatementService {
         statement = statementRepository.save(statement);
 
         try {
-            // Get transactions for period
+            // Get transactions for period (Phase 2C.1 ensures payments are included)
             List<Transaction> transactions = transactionRepository.findByAccountIdAndDateRange(
                     account.getId(), request.getStartDate().atStartOfDay(), request.getEndDate().atTime(23, 59, 59));
 
             // Calculate balances
-            BigDecimal openingBalance = calculateOpeningBalance(account, request.getStartDate());
+            BigDecimal openingBalance = calculateOpeningBalance(account, request.getStartDate(), transactions);
             BigDecimal closingBalance = account.getBalance();
             BigDecimal totalDeposits = calculateTotalDeposits(transactions);
             BigDecimal totalWithdrawals = calculateTotalWithdrawals(transactions);
+            BigDecimal totalPayments = calculateTotalPayments(transactions);
 
             // Update statement with calculations
             statement.setOpeningBalance(openingBalance);
@@ -140,7 +152,8 @@ public class StatementService {
             statement.markAsGenerated(pdfPath, csvPath, pdfSize, csvSize, s3Service.getBucketName());
             statement = statementRepository.save(statement);
 
-            log.info("Statement generated successfully: {}", statement.getId());
+            log.info("Statement generated successfully: {} for account {} by user {}", 
+                    statement.getId(), account.getId(), generatedBy);
 
             // Publish event
             publishStatementGeneratedEvent(statement);
@@ -230,16 +243,30 @@ public class StatementService {
         return yearMonth.format(DateTimeFormatter.ofPattern("yyyy-MM"));
     }
 
-    private BigDecimal calculateOpeningBalance(Account account, LocalDate startDate) {
-        // In production, would calculate from transaction history
-        // For now, use current balance
-        return account.getBalance();
+    private BigDecimal calculateOpeningBalance(Account account, LocalDate startDate, List<Transaction> transactions) {
+        // Calculate opening balance by subtracting net transactions from current balance
+        BigDecimal netChange = BigDecimal.ZERO;
+        for (Transaction t : transactions) {
+            if (t.getTransactionType() == Transaction.TransactionType.DEPOSIT ||
+                t.getTransactionType() == Transaction.TransactionType.TRANSFER) {
+                if (t.getToAccountId() != null && t.getToAccountId().equals(account.getId())) {
+                    netChange = netChange.add(t.getAmount());
+                }
+            }
+            if (t.getTransactionType() == Transaction.TransactionType.WITHDRAWAL ||
+                t.getTransactionType() == Transaction.TransactionType.PAYMENT ||
+                t.getTransactionType() == Transaction.TransactionType.TRANSFER) {
+                if (t.getFromAccountId() != null && t.getFromAccountId().equals(account.getId())) {
+                    netChange = netChange.subtract(t.getAmount());
+                }
+            }
+        }
+        return account.getBalance().subtract(netChange);
     }
 
     private BigDecimal calculateTotalDeposits(List<Transaction> transactions) {
         return transactions.stream()
-                .filter(t -> t.getTransactionType() == Transaction.TransactionType.DEPOSIT ||
-                           t.getTransactionType() == Transaction.TransactionType.TRANSFER)
+                .filter(t -> t.getTransactionType() == Transaction.TransactionType.DEPOSIT)
                 .map(Transaction::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
@@ -247,6 +274,13 @@ public class StatementService {
     private BigDecimal calculateTotalWithdrawals(List<Transaction> transactions) {
         return transactions.stream()
                 .filter(t -> t.getTransactionType() == Transaction.TransactionType.WITHDRAWAL)
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private BigDecimal calculateTotalPayments(List<Transaction> transactions) {
+        return transactions.stream()
+                .filter(t -> t.getTransactionType() == Transaction.TransactionType.PAYMENT)
                 .map(Transaction::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }

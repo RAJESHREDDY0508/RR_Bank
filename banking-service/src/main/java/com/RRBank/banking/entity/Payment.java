@@ -114,6 +114,9 @@ public class Payment {
     @Column(name = "initiated_by")
     private UUID initiatedBy;
 
+    @Column(name = "idempotency_key", unique = true, length = 100)
+    private String idempotencyKey;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

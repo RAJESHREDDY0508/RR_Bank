@@ -16,10 +16,11 @@
     <properties>
         <java.version>21</java.version>
         <springdoc.version>2.3.0</springdoc.version>
+        <spring-cloud.version>2023.0.3</spring-cloud.version>
     </properties>
 
     <dependencies>
-        <!-- Spring Boot Starters -->
+        <!-- ==================== SPRING BOOT STARTERS ==================== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -50,14 +51,33 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
-        <!-- OpenAPI / Swagger Documentation -->
+        <!-- ==================== SPRING CLOUD ==================== -->
+        <!-- ✅ Eureka Client (Service Discovery) -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+        </dependency>
+
+        <!-- ✅ Config Client (Centralized Configuration) -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-config</artifactId>
+        </dependency>
+
+        <!-- ✅ Bootstrap (Required for bootstrap.yml to be honored) -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-bootstrap</artifactId>
+        </dependency>
+
+        <!-- ==================== OPENAPI / SWAGGER ==================== -->
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
             <version>${springdoc.version}</version>
         </dependency>
 
-        <!-- Database -->
+        <!-- ==================== DATABASE ==================== -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
@@ -80,13 +100,13 @@
             <artifactId>flyway-database-postgresql</artifactId>
         </dependency>
 
-        <!-- Kafka -->
+        <!-- ==================== KAFKA ==================== -->
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
 
-        <!-- JWT -->
+        <!-- ==================== JWT ==================== -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
@@ -105,7 +125,7 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Lombok -->
+        <!-- ==================== LOMBOK ==================== -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
@@ -131,6 +151,18 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <build>
         <plugins>

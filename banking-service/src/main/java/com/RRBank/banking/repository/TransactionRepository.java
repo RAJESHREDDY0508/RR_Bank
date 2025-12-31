@@ -35,10 +35,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
      */
     long countByCreatedAtAfter(LocalDateTime dateTime);
 
-    // ========== PAGINATED METHODS ✅ (FOR PRODUCTION USE) ==========
+    // ========== PAGINATED METHODS ==========
+    
     /**
-     * Find all transactions for an account (as sender or receiver) - with
-     * pagination
+     * Find all transactions for an account (as sender or receiver) - with pagination
      */
     @Query("SELECT t FROM Transaction t WHERE t.fromAccountId = :accountId OR t.toAccountId = :accountId ORDER BY t.createdAt DESC")
     Page<Transaction> findByAccountId(@Param("accountId") UUID accountId, Pageable pageable);
@@ -80,7 +80,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
             @Param("status") Transaction.TransactionStatus status,
             Pageable pageable);
 
-    // ========== NON-PAGINATED METHODS (DEPRECATED - Use paginated versions above) ==========
+    // ========== NON-PAGINATED METHODS ==========
+    
     /**
      * Find all transactions for an account (as sender or receiver)
      */
@@ -163,12 +164,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     BigDecimal getTotalIncomingAmount(@Param("accountId") UUID accountId);
 
     /**
-     * Find recent transactions for account (last N)
+     * Find recent transactions for account - uses Pageable for limiting
      */
-    @Query(value = "SELECT t FROM Transaction t WHERE t.fromAccountId = :accountId OR t.toAccountId = :accountId "
-            + "ORDER BY t.createdAt DESC LIMIT :limit")
-    List<Transaction> findRecentTransactionsByAccountId(@Param("accountId") UUID accountId,
-            @Param("limit") int limit);
+    @Query("SELECT t FROM Transaction t WHERE t.fromAccountId = :accountId OR t.toAccountId = :accountId ORDER BY t.createdAt DESC")
+    List<Transaction> findRecentByAccountId(@Param("accountId") UUID accountId, Pageable pageable);
 
     /**
      * Search transactions by description

@@ -1,11 +1,10 @@
-package com.RRBank.banking.gateway;
+package com.rrbank.gateway;
 
 import io.github.resilience4j.circuitbreaker.CircuitBreaker;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -47,7 +46,6 @@ public class GatewayMonitoringController {
      * GET /api/gateway/routes
      */
     @GetMapping("/routes")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getRoutes() {
         log.info("REST request to get all gateway routes");
         
@@ -79,7 +77,6 @@ public class GatewayMonitoringController {
      * GET /api/gateway/routes/{routeId}
      */
     @GetMapping("/routes/{routeId}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getRoute(@PathVariable String routeId) {
         log.info("REST request to get route: {}", routeId);
         
@@ -111,7 +108,6 @@ public class GatewayMonitoringController {
      * GET /api/gateway/circuit-breakers
      */
     @GetMapping("/circuit-breakers")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getCircuitBreakers() {
         log.info("REST request to get circuit breaker status");
         
@@ -144,74 +140,10 @@ public class GatewayMonitoringController {
     }
 
     /**
-     * Get circuit breaker status for specific service
-     * GET /api/gateway/circuit-breakers/{name}
-     */
-    @GetMapping("/circuit-breakers/{name}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, Object>> getCircuitBreaker(@PathVariable String name) {
-        log.info("REST request to get circuit breaker: {}", name);
-        
-        try {
-            CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker(name);
-            
-            Map<String, Object> cbInfo = new HashMap<>();
-            cbInfo.put("name", circuitBreaker.getName());
-            cbInfo.put("state", circuitBreaker.getState().toString());
-            
-            CircuitBreaker.Metrics metrics = circuitBreaker.getMetrics();
-            Map<String, Object> metricsInfo = new HashMap<>();
-            metricsInfo.put("failureRate", metrics.getFailureRate());
-            metricsInfo.put("numberOfSuccessfulCalls", metrics.getNumberOfSuccessfulCalls());
-            metricsInfo.put("numberOfFailedCalls", metrics.getNumberOfFailedCalls());
-            metricsInfo.put("numberOfSlowCalls", metrics.getNumberOfSlowCalls());
-            metricsInfo.put("numberOfNotPermittedCalls", metrics.getNumberOfNotPermittedCalls());
-            
-            cbInfo.put("metrics", metricsInfo);
-            cbInfo.put("timestamp", LocalDateTime.now());
-            
-            return ResponseEntity.ok(cbInfo);
-        } catch (Exception e) {
-            log.error("Error getting circuit breaker {}: {}", name, e.getMessage());
-            return ResponseEntity.notFound().build();
-        }
-    }
-
-    /**
-     * Reset circuit breaker
-     * POST /api/gateway/circuit-breakers/{name}/reset
-     */
-    @PostMapping("/circuit-breakers/{name}/reset")
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Map<String, Object>> resetCircuitBreaker(@PathVariable String name) {
-        log.info("REST request to reset circuit breaker: {}", name);
-        
-        try {
-            CircuitBreaker circuitBreaker = circuitBreakerRegistry.circuitBreaker(name);
-            circuitBreaker.reset();
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("message", "Circuit breaker reset successfully");
-            response.put("name", name);
-            response.put("state", circuitBreaker.getState().toString());
-            response.put("timestamp", LocalDateTime.now());
-            
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Error resetting circuit breaker {}: {}", name, e.getMessage());
-            Map<String, Object> error = new HashMap<>();
-            error.put("error", "Circuit breaker not found or reset failed");
-            error.put("name", name);
-            return ResponseEntity.badRequest().body(error);
-        }
-    }
-
-    /**
      * Get gateway statistics
      * GET /api/gateway/stats
      */
     @GetMapping("/stats")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getGatewayStats() {
         log.info("REST request to get gateway statistics");
         
@@ -228,19 +160,6 @@ public class GatewayMonitoringController {
                 ));
         stats.put("circuitBreakerStates", cbStateCount);
         
-        // Calculate total metrics
-        int totalSuccessfulCalls = circuitBreakerRegistry.getAllCircuitBreakers()
-                .stream()
-                .mapToInt(cb -> (int) cb.getMetrics().getNumberOfSuccessfulCalls())
-                .sum();
-        
-        int totalFailedCalls = circuitBreakerRegistry.getAllCircuitBreakers()
-                .stream()
-                .mapToInt(cb -> (int) cb.getMetrics().getNumberOfFailedCalls())
-                .sum();
-        
-        stats.put("totalSuccessfulCalls", totalSuccessfulCalls);
-        stats.put("totalFailedCalls", totalFailedCalls);
         stats.put("timestamp", LocalDateTime.now());
         
         return ResponseEntity.ok(stats);

@@ -1,11 +1,11 @@
-package com.RRBank.banking.gateway;
+package com.rrbank.gateway;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.cors.reactive.CorsConfigurationSource;
+import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
 import java.util.List;
@@ -14,6 +14,8 @@ import java.util.List;
  * Gateway CORS Configuration
  * Configures Cross-Origin Resource Sharing for API Gateway
  * Allows frontend applications to communicate with the backend
+ * 
+ * Note: Uses reactive CORS classes for Spring WebFlux/Gateway
  */
 @Configuration
 @Slf4j
@@ -25,15 +27,8 @@ public class GatewayCorsConfiguration {
         
         CorsConfiguration configuration = new CorsConfiguration();
         
-        // Allowed origins (frontend applications)
-        configuration.setAllowedOrigins(Arrays.asList(
-                "http://localhost:3000",      // React dev server
-                "http://localhost:5173",      // Vite dev server
-                "http://localhost:8080",      // Same origin
-                "http://localhost:4200",      // Angular dev server
-                "https://rrbank.com",         // Production domain
-                "https://www.rrbank.com"      // Production domain with www
-        ));
+        // Allow all origins for development - restrict in production
+        configuration.setAllowedOriginPatterns(List.of("*"));
         
         // Allowed HTTP methods
         configuration.setAllowedMethods(Arrays.asList(
@@ -42,21 +37,12 @@ public class GatewayCorsConfiguration {
                 "PUT",
                 "PATCH",
                 "DELETE",
-                "OPTIONS"
+                "OPTIONS",
+                "HEAD"
         ));
         
-        // Allowed headers
-        configuration.setAllowedHeaders(Arrays.asList(
-                "Authorization",
-                "Content-Type",
-                "Accept",
-                "Origin",
-                "X-Requested-With",
-                "Access-Control-Request-Method",
-                "Access-Control-Request-Headers",
-                "X-Rate-Limit-Remaining",
-                "X-Rate-Limit-Identifier"
-        ));
+        // Allow all headers
+        configuration.setAllowedHeaders(List.of("*"));
         
         // Exposed headers (headers that the browser is allowed to access)
         configuration.setExposedHeaders(Arrays.asList(
@@ -65,7 +51,8 @@ public class GatewayCorsConfiguration {
                 "X-Rate-Limit-Remaining",
                 "X-Rate-Limit-Identifier",
                 "X-Rate-Limit-Retry-After-Seconds",
-                "X-Request-Id"
+                "X-Request-Id",
+                "X-Correlation-ID"
         ));
         
         // Allow credentials (cookies, authorization headers)
@@ -77,7 +64,7 @@ public class GatewayCorsConfiguration {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         
-        log.info("CORS configuration completed - Allowed origins: {}", configuration.getAllowedOrigins());
+        log.info("CORS configuration completed - All origins allowed for development");
         
         return source;
     }

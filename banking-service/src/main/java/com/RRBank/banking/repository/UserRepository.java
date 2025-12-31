@@ -17,22 +17,34 @@ import java.util.List;
 public interface UserRepository extends JpaRepository<User, String> {
     
     /**
-     * Find user by username
+     * Find user by username (case-sensitive)
      */
     Optional<User> findByUsername(String username);
     
     /**
-     * Find user by email
+     * Find user by email (case-insensitive)
+     */
+    @Query("SELECT u FROM User u WHERE LOWER(u.email) = LOWER(:email)")
+    Optional<User> findByEmailIgnoreCase(@Param("email") String email);
+    
+    /**
+     * Find user by email (default - kept for backward compatibility)
      */
     Optional<User> findByEmail(String email);
     
     /**
-     * Check if username exists
+     * Check if username exists (case-sensitive)
      */
     boolean existsByUsername(String username);
     
     /**
-     * Check if email exists
+     * Check if email exists (case-insensitive)
+     */
+    @Query("SELECT CASE WHEN COUNT(u) > 0 THEN true ELSE false END FROM User u WHERE LOWER(u.email) = LOWER(:email)")
+    boolean existsByEmailIgnoreCase(@Param("email") String email);
+    
+    /**
+     * Check if email exists (default)
      */
     boolean existsByEmail(String email);
     

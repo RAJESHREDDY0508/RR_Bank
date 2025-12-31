@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
@@ -17,51 +18,69 @@
     <name>RRBank API Gateway</name>
 
     <properties>
-        <java.version>17</java.version>
-        <spring-cloud.version>2024.0.0</spring-cloud.version>
+        <java.version>21</java.version>
+        <spring-cloud.version>2023.0.3</spring-cloud.version>
+        <resilience4j.version>2.2.0</resilience4j.version>
     </properties>
 
     <dependencies>
 
-        <!-- ✅ Spring Cloud Gateway (Reactive) -->
+        <!-- Spring Cloud Gateway (Reactive) -->
         <dependency>
             <groupId>org.springframework.cloud</groupId>
             <artifactId>spring-cloud-starter-gateway</artifactId>
         </dependency>
 
-        <!-- ✅ WebFlux (REQUIRED for Gateway) -->
+        <!-- WebFlux (REQUIRED for Gateway) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
 
-        <!-- ✅ Spring Security (Reactive) -->
+        <!-- Spring Security (Reactive) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
 
-        <!-- ✅ Actuator -->
+        <!-- Actuator -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
-        <!-- ✅ Rate limiting -->
+        <!-- Eureka Client (Service Discovery) -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+        </dependency>
+
+        <!-- Config Client (Centralized Configuration) -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-config</artifactId>
+        </dependency>
+
+        <!-- Bootstrap (Required for bootstrap.yml to be honored) -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-bootstrap</artifactId>
+        </dependency>
+
+        <!-- Rate limiting -->
         <dependency>
             <groupId>com.bucket4j</groupId>
             <artifactId>bucket4j-core</artifactId>
             <version>8.10.1</version>
         </dependency>
 
-        <!-- ✅ Resilience -->
+        <!-- Resilience4j - Circuit Breaker for Gateway -->
         <dependency>
-            <groupId>io.github.resilience4j</groupId>
-            <artifactId>resilience4j-spring-boot3</artifactId>
-            <version>2.3.0</version>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
         </dependency>
 
-        <!-- ✅ JWT (Gateway validation) -->
+        <!-- JWT (Gateway validation) -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
@@ -80,7 +99,7 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- ✅ Lombok -->
+        <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

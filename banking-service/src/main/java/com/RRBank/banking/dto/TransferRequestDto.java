@@ -15,10 +15,11 @@ import java.util.UUID;
  * Transfer Request DTO
  * Used for internal money transfers between accounts
  * 
- * Supports:
- * - TRANSFER: Both fromAccountId and toAccountId required
- * - DEPOSIT: Only toAccountId required (fromAccountId = null)
- * - WITHDRAWAL: Only fromAccountId required (toAccountId = null)
+ * Supports transfer by:
+ * - Account ID (UUID): fromAccountId, toAccountId
+ * - Account Number (String): fromAccountNumber, toAccountNumber
+ * 
+ * If both ID and Number are provided, ID takes precedence.
  */
 @Data
 @NoArgsConstructor
@@ -27,16 +28,28 @@ import java.util.UUID;
 public class TransferRequestDto {
 
     /**
-     * Source account ID (nullable for deposits)
+     * Source account ID (UUID) - optional if fromAccountNumber is provided
      */
     @JsonProperty("fromAccountId")
     private UUID fromAccountId;
 
     /**
-     * Destination account ID (nullable for withdrawals)
+     * Destination account ID (UUID) - optional if toAccountNumber is provided
      */
     @JsonProperty("toAccountId")
     private UUID toAccountId;
+    
+    /**
+     * Source account number (String) - optional if fromAccountId is provided
+     */
+    @JsonProperty("fromAccountNumber")
+    private String fromAccountNumber;
+    
+    /**
+     * Destination account number (String) - optional if toAccountId is provided
+     */
+    @JsonProperty("toAccountNumber")
+    private String toAccountNumber;
 
     @NotNull(message = "Amount is required")
     @DecimalMin(value = "0.01", message = "Amount must be greater than 0")

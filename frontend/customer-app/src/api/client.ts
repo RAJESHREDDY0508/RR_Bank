@@ -1,7 +1,14 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import toast from 'react-hot-toast';
 
+// API Base URL - defaults to gateway on port 8080
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api';
+
+console.log('API Client initialized with base URL:', API_BASE_URL);
+
+// Token keys - standardized
+const ACCESS_TOKEN_KEY = 'accessToken';
+const REFRESH_TOKEN_KEY = 'refreshToken';
 
 // Create axios instance
 export const apiClient: AxiosInstance = axios.create({
@@ -12,10 +19,6 @@ export const apiClient: AxiosInstance = axios.create({
   timeout: 30000, // 30 seconds
 });
 
-// ✅ FIX: Standardized to use 'accessToken' everywhere
-const ACCESS_TOKEN_KEY = 'accessToken';
-const REFRESH_TOKEN_KEY = 'refreshToken';
-
 // Request interceptor - Add auth token
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
@@ -23,6 +26,7 @@ apiClient.interceptors.request.use(
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    console.log(`[API] ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`);
     return config;
   },
   (error: AxiosError) => {
@@ -43,7 +47,6 @@ apiClient.interceptors.response.use(
       try {
         const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
         if (refreshToken) {
-          // ✅ FIX: Send refresh token in Authorization header
           const response = await axios.post(
             `${API_BASE_URL}/auth/refresh`,
             null,
@@ -54,23 +57,19 @@ apiClient.interceptors.response.use(
             }
           );
 
-          // ✅ FIX: Backend returns accessToken
           const { accessToken, refreshToken: newRefreshToken } = response.data;
           localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
           
-          // Update refresh token if backend sends a new one
           if (newRefreshToken) {
             localStorage.setItem(REFRESH_TOKEN_KEY, newRefreshToken);
           }
 
-          // Retry the original request with new token
           if (originalRequest.headers) {
             originalRequest.headers.Authorization = `Bearer ${accessToken}`;
           }
           return apiClient(originalRequest);
         }
       } catch (refreshError) {
-        // Refresh failed - logout user
         localStorage.removeItem(ACCESS_TOKEN_KEY);
         localStorage.removeItem(REFRESH_TOKEN_KEY);
         localStorage.removeItem('user');
@@ -80,9 +79,16 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // Log error for debugging
+    console.error('[API Error]', {
+      url: originalRequest?.url,
+      status: error.response?.status,
+      data: error.response?.data
+    });
+
     // Handle other errors
-    const errorMessage = error.response?.data?.message || 
-                         error.response?.data?.error || 
+    const errorMessage = (error.response?.data as any)?.message || 
+                         (error.response?.data as any)?.error || 
                          error.message ||
                          'An error occurred';
 
@@ -109,7 +115,7 @@ apiClient.interceptors.response.use(
         toast.error('Too many requests. Please try again later.');
         break;
       case 500:
-        toast.error('Server error. Please try again later.');
+        toast.error(`Server error: ${errorMessage}`);
         break;
       case 503:
         toast.error('Service unavailable. Please try again later.');

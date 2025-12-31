@@ -1,9 +1,24 @@
+# ============================================================
+# RR-Bank Banking Service - Bootstrap Configuration
+# ============================================================
+# This file loads BEFORE application.yml
+# Used for Config Server connection settings
+# ============================================================
+
 spring:
   application:
     name: banking-service
 
   cloud:
     config:
-      enabled: ${CONFIG_SERVER_ENABLED:true}
+      # Config Server URI - configurable via environment variable
       uri: ${CONFIG_SERVER_URI:http://localhost:8888}
+      # Don't fail if config server is unavailable
       fail-fast: false
+      # Enable/disable config client
+      enabled: ${CONFIG_SERVER_ENABLED:false}
+      # Retry settings (optional - helps with startup order)
+      retry:
+        initial-interval: 1000
+        max-attempts: 3
+        max-interval: 2000

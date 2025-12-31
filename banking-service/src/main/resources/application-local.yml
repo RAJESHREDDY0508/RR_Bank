@@ -1,19 +1,13 @@
 # ============================================================
 # RR-Bank Banking Service - LOCAL Profile
 # ============================================================
-# Development configuration for local machine.
-# Use: mvn spring-boot:run -Dspring.profiles.active=local
-# 
-# SECURITY: All secrets are loaded from environment variables.
-# Set these in your .env file (never commit .env!)
-# ============================================================
 
 spring:
   config:
     activate:
       on-profile: local
 
-  # PostgreSQL Database - Local
+  # PostgreSQL Database
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/rrbank}
     username: ${DB_USERNAME:postgres}
@@ -25,53 +19,46 @@ spring:
       idle-timeout: 300000
       connection-timeout: 20000
 
-  # JPA/Hibernate - Local Development
+  # JPA/Hibernate
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
     properties:
       hibernate:
         format_sql: true
 
-  # Flyway - Local (DISABLED - using Hibernate ddl-auto instead)
+  # Flyway - Disabled
   flyway:
     enabled: false
 
-  # Redis - Local
+  # Redis - Optional (will gracefully degrade if not available)
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      timeout: 2000ms
+      timeout: 1000ms
+      connect-timeout: 1000ms
 
-  # Kafka - Disabled for local development
+  # Kafka - Disabled
   kafka:
     enabled: false
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
 
-# ============================================================
 # JWT Configuration
-# ============================================================
-# SECURITY: JWT_SECRET must be set in environment variables!
-# Generate a secure key: openssl rand -base64 64
+# ✅ FIX: Provide a default secret for local development (DO NOT USE IN PRODUCTION)
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:rr-bank-local-development-secret-key-32-chars-minimum-for-hs256-algorithm}
   expiration: ${JWT_EXPIRATION:86400000}
   refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
 
-# ============================================================
-# CORS - Allow all localhost dev servers
-# ============================================================
+# CORS
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:8080}
   allowed-methods: GET,POST,PUT,DELETE,OPTIONS,PATCH
   allowed-headers: "*"
   allow-credentials: true
 
-# ============================================================
-# Actuator - Full access for local development
-# ============================================================
+# Actuator
 management:
   endpoints:
     web:
@@ -80,25 +67,17 @@ management:
   endpoint:
     health:
       show-details: always
-      show-components: always
 
-# ============================================================
-# Logging - Verbose for debugging
-# ============================================================
+# Logging - reduced verbosity
 logging:
   level:
     root: INFO
     com.RRBank: DEBUG
-    org.springframework.security: DEBUG
-    org.springframework.web.cors: DEBUG
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type.descriptor.sql: TRACE
-    org.flywaydb: DEBUG
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+    org.springframework.data.redis: WARN
 
-# ============================================================
-# Swagger - Full features enabled
-# ============================================================
+# Swagger
 springdoc:
   swagger-ui:
     enabled: true
-    try-it-out-enabled: true

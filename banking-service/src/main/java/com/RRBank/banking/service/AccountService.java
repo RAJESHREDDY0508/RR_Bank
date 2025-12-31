@@ -37,6 +37,7 @@ public class AccountService {
     private final AccountRepository accountRepository;
     private final AccountCacheService cacheService;
     private final AccountNumberGenerator accountNumberGenerator;
+    private final com.RRBank.banking.repository.CustomerRepository customerRepository;
     
     @Autowired(required = false)
     private AccountEventProducer eventProducer;
@@ -49,10 +50,12 @@ public class AccountService {
     @Autowired
     public AccountService(AccountRepository accountRepository, 
                          AccountCacheService cacheService,
-                         AccountNumberGenerator accountNumberGenerator) {
+                         AccountNumberGenerator accountNumberGenerator,
+                         com.RRBank.banking.repository.CustomerRepository customerRepository) {
         this.accountRepository = accountRepository;
         this.cacheService = cacheService;
         this.accountNumberGenerator = accountNumberGenerator;
+        this.customerRepository = customerRepository;
     }
 
     // ========== AUTHENTICATION HELPER METHODS ==========
@@ -530,6 +533,21 @@ public class AccountService {
     }
 
     // ========== HELPER METHODS ==========
+
+    /**
+     * ✅ FIX: Resolve customerId from userId
+     * This allows frontend to create accounts without knowing the customerId
+     */
+    @Transactional(readOnly = true)
+    public UUID resolveCustomerIdFromUserId(UUID userId) {
+        log.info("Resolving customerId from userId: {}", userId);
+        
+        return customerRepository.findByUserId(userId)
+                .map(com.RRBank.banking.entity.Customer::getId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "No customer profile found for userId: " + userId + 
+                        ". Please complete customer registration first."));
+    }
 
     private BalanceResponseDto buildBalanceResponse(Account account, BigDecimal balance) {
         BigDecimal availableBalance = balance.add(account.getOverdraftLimit());
