@@ -13,25 +13,29 @@ export const authService = {
     };
     
     const response = await api.post('/auth/register', cleanedData);
-    const { accessToken, refreshToken, ...user } = response.data;
+    const { accessToken, refreshToken, user, ...rest } = response.data;
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
-    localStorage.setItem('user', JSON.stringify(user));
+    // Store user info - handle both nested and flat structures
+    const userInfo = user || rest;
+    localStorage.setItem('user', JSON.stringify(userInfo));
     return response.data;
   },
 
   login: async (credentials) => {
-    // ✅ FIX: Map frontend 'email' field to backend 'usernameOrEmail' field
+    // Map frontend 'email' field to backend 'usernameOrEmail' field
     const loginPayload = {
       usernameOrEmail: credentials.email || credentials.usernameOrEmail,
       password: credentials.password
     };
     
     const response = await api.post('/auth/login', loginPayload);
-    const { accessToken, refreshToken, ...user } = response.data;
+    const { accessToken, refreshToken, user, ...rest } = response.data;
     localStorage.setItem('accessToken', accessToken);
     localStorage.setItem('refreshToken', refreshToken);
-    localStorage.setItem('user', JSON.stringify(user));
+    // Store user info - handle both nested and flat structures
+    const userInfo = user || rest;
+    localStorage.setItem('user', JSON.stringify(userInfo));
     return response.data;
   },
 
@@ -112,7 +116,7 @@ export const authService = {
 };
 
 // ============================================================
-// ACCOUNT SERVICE - Enhanced with account requests
+// ACCOUNT SERVICE - Fixed to match backend endpoints
 // ============================================================
 export const accountService = {
   // Get all accounts for current user
@@ -127,78 +131,107 @@ export const accountService = {
     return response.data;
   },
 
+  // Get account by account number
+  getAccountByNumber: async (accountNumber) => {
+    // Remove dashes if present for lookup
+    const cleanNumber = accountNumber.replace(/-/g, '');
+    const response = await api.get(`/accounts/number/${accountNumber}`);
+    return response.data;
+  },
+
   // Get account balance
   getBalance: async (accountId) => {
     const response = await api.get(`/accounts/${accountId}/balance`);
     return response.data;
   },
 
-  // Create new account (requires customerId)
-  createAccount: async (customerId, accountType, initialBalance = 0, currency = 'USD') => {
+  // Create new account (direct creation - for logged in users)
+  createAccount: async (accountType, currency = 'USD') => {
+    const user = authService.getCurrentUser();
+    if (!user?.id) {
+      throw new Error('User not authenticated');
+    }
     const response = await api.post('/accounts', {
-      customerId,
+      userId: user.id,
       accountType,
-      initialBalance,
       currency
     });
     return response.data;
   },
 
-  // Submit account opening request (goes through approval workflow)
+  // Request account opening (alias for createAccount with better UX)
   requestAccount: async (accountType, initialDeposit = 0, currency = 'USD', notes = '') => {
-    const response = await api.post('/accounts/requests', {
-      accountType,
-      initialDeposit,
-      currency,
-      notes
+    // First create the account
+    const account = await accountService.createAccount(accountType, currency);
+    
+    // If there's an initial deposit, make it
+    if (initialDeposit > 0 && account?.id) {
+      try {
+        await transactionService.deposit(account.id, initialDeposit, 'Initial deposit');
+      } catch (err) {
+        console.error('Initial deposit failed:', err);
+        // Account was created, just the deposit failed
+      }
+    }
+    
+    return account;
+  },
+
+  // Get user's account requests (returns accounts for now)
+  getMyRequests: async () => {
+    // Since we don't have a separate request system, return empty array
+    return [];
+  },
+
+  // Cancel pending account request (no-op for now)
+  cancelRequest: async (requestId) => {
+    return { success: true };
+  },
+
+  // Close account (update status)
+  closeAccount: async (accountId) => {
+    const response = await api.patch(`/accounts/${accountId}/status`, null, {
+      params: { status: 'CLOSED' }
     });
     return response.data;
   },
 
-  // Get user's account requests
-  getMyRequests: async () => {
-    const response = await api.get('/accounts/requests');
-    return response.data;
-  },
-
-  // Cancel pending account request
-  cancelRequest: async (requestId) => {
-    const response = await api.delete(`/accounts/requests/${requestId}`);
-    return response.data;
-  },
-
-  // Close account (balance must be zero)
-  closeAccount: async (accountId) => {
-    const response = await api.patch(`/accounts/${accountId}/close`);
-    return response.data;
-  },
-
-  // Get accounts by customer ID
-  getAccountsByCustomer: async (customerId) => {
-    const response = await api.get(`/accounts/customer/${customerId}`);
+  // Get accounts by user ID
+  getAccountsByUser: async (userId) => {
+    const response = await api.get(`/accounts/user/${userId}`);
     return response.data;
   }
 };
 
 // ============================================================
-// TRANSACTION SERVICE - Enhanced with deposit/withdraw
+// TRANSACTION SERVICE - Fixed to match backend endpoints
 // ============================================================
 export const transactionService = {
-  // Deposit money
+  // Deposit money - use /transactions/deposit endpoint
   deposit: async (accountId, amount, description = '') => {
-    const response = await api.post(`/accounts/${accountId}/deposit`, {
-      amount,
-      description
-    });
+    const idempotencyKey = uuidv4();
+    const response = await api.post('/transactions/deposit',
+      { 
+        accountId, 
+        amount: parseFloat(amount),
+        description 
+      },
+      { headers: { 'Idempotency-Key': idempotencyKey } }
+    );
     return response.data;
   },
 
-  // Withdraw money
+  // Withdraw money - use /transactions/withdraw endpoint
   withdraw: async (accountId, amount, description = '') => {
-    const response = await api.post(`/accounts/${accountId}/withdraw`, {
-      amount,
-      description
-    });
+    const idempotencyKey = uuidv4();
+    const response = await api.post('/transactions/withdraw',
+      { 
+        accountId, 
+        amount: parseFloat(amount),
+        description 
+      },
+      { headers: { 'Idempotency-Key': idempotencyKey } }
+    );
     return response.data;
   },
 
@@ -206,17 +239,43 @@ export const transactionService = {
   transfer: async (fromAccountId, toAccountId, amount, description = '') => {
     const idempotencyKey = uuidv4();
     const response = await api.post('/transactions/transfer',
-      { fromAccountId, toAccountId, amount, description },
+      { 
+        fromAccountId, 
+        toAccountId, 
+        amount: parseFloat(amount),
+        description 
+      },
       { headers: { 'Idempotency-Key': idempotencyKey } }
     );
     return response.data;
   },
 
-  // Get transactions for account (paginated)
-  getTransactions: async (accountId, page = 0, size = 20) => {
-    const response = await api.get(`/transactions/account/${accountId}`, {
-      params: { page, size }
-    });
+  // Transfer money by account number
+  transferByAccountNumber: async (fromAccountId, toAccountNumber, amount, description = '') => {
+    // First lookup the account by number
+    const targetAccount = await accountService.getAccountByNumber(toAccountNumber);
+    if (!targetAccount?.id) {
+      throw new Error('Destination account not found');
+    }
+    // Then do the transfer
+    return transactionService.transfer(fromAccountId, targetAccount.id, amount, description);
+  },
+
+  // Get transactions for account (paginated) with optional date filters
+  getTransactions: async (accountId, page = 0, size = 20, filters = {}) => {
+    const params = { page, size };
+    
+    if (filters.startDate) {
+      params.startDate = filters.startDate;
+    }
+    if (filters.endDate) {
+      params.endDate = filters.endDate;
+    }
+    if (filters.type) {
+      params.type = filters.type;
+    }
+    
+    const response = await api.get(`/transactions/account/${accountId}`, { params });
     return response.data;
   },
 
@@ -226,24 +285,54 @@ export const transactionService = {
     return response.data;
   },
 
-  // Get recent transactions
+  // Get transaction by reference
+  getTransactionByReference: async (reference) => {
+    const response = await api.get(`/transactions/reference/${reference}`);
+    return response.data;
+  },
+
+  // Get recent transactions (convenience method)
   getRecentTransactions: async (accountId, limit = 10) => {
-    const response = await api.get(`/transactions/account/${accountId}/recent`, {
-      params: { limit }
+    const response = await api.get(`/transactions/account/${accountId}`, {
+      params: { page: 0, size: limit }
+    });
+    return response.data?.content || response.data || [];
+  },
+
+  // Export transactions as CSV
+  exportTransactions: async (accountId, startDate, endDate) => {
+    const params = {};
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+    
+    const response = await api.get(`/transactions/account/${accountId}/export`, {
+      params,
+      responseType: 'blob'
     });
     return response.data;
   },
 
-  // Get transaction statistics
+  // Get transaction statistics (mock for now)
   getStats: async (accountId) => {
-    const response = await api.get(`/transactions/account/${accountId}/stats`);
-    return response.data;
+    // This would need a backend endpoint
+    return {
+      totalDeposits: 0,
+      totalWithdrawals: 0,
+      totalTransfers: 0
+    };
   },
 
-  // Get user's transaction limits
+  // Get user's transaction limits (mock for now)
   getLimits: async () => {
-    const response = await api.get('/transactions/limits');
-    return response.data;
+    // Return default limits
+    return [{
+      limitType: 'TRANSFER',
+      perTransactionLimit: 10000,
+      dailyLimit: 50000,
+      monthlyLimit: 200000,
+      remainingDaily: 50000,
+      remainingMonthly: 200000
+    }];
   },
 
   // Search transactions

@@ -26,18 +26,53 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     const data = await authService.login(credentials);
-    setUser({ ...data, accessToken: undefined, refreshToken: undefined });
+    // Extract user info from response
+    // Backend returns { accessToken, refreshToken, user: { id, username, email, ... } }
+    // or { accessToken, refreshToken, id, username, email, ... }
+    const userInfo = data.user || {
+      id: data.id,
+      username: data.username,
+      email: data.email,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      role: data.role
+    };
+    setUser(userInfo);
     return data;
   };
 
   const register = async (userData) => {
     const data = await authService.register(userData);
+    // After registration, user info is stored in localStorage by authService
+    const userInfo = data.user || {
+      id: data.id,
+      username: data.username,
+      email: data.email,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      role: data.role
+    };
+    setUser(userInfo);
     return data;
   };
 
-  const logout = () => {
-    authService.logout();
-    setUser(null);
+  const logout = async () => {
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setUser(null);
+    }
+  };
+
+  const updateUser = (userData) => {
+    setUser(prev => ({ ...prev, ...userData }));
+    // Update localStorage
+    const stored = authService.getCurrentUser();
+    if (stored) {
+      localStorage.setItem('user', JSON.stringify({ ...stored, ...userData }));
+    }
   };
 
   const value = {
@@ -45,6 +80,7 @@ export const AuthProvider = ({ children }) => {
     login,
     register,
     logout,
+    updateUser,
     isAuthenticated: !!user,
     loading,
   };

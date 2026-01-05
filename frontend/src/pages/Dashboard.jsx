@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { accountService, transactionService } from '../services/bankService';
@@ -10,56 +10,161 @@ import {
   ArrowDownLeft,
   CreditCard,
   Loader,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 
 const Dashboard = () => {
   const [accounts, setAccounts] = useState([]);
   const [recentTransactions, setRecentTransactions] = useState([]);
+  const [monthlyStats, setMonthlyStats] = useState({ income: 0, expenses: 0 });
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+
+  const fetchDashboardData = useCallback(async (showRefreshing = false) => {
+    try {
+      if (showRefreshing) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      setError('');
+      
+      // Fetch accounts
+      const accountsData = await accountService.getAccounts().catch(err => {
+        console.error('Error fetching accounts:', err);
+        return [];
+      });
+      
+      setAccounts(accountsData || []);
+
+      // Fetch transactions for all accounts to calculate monthly stats
+      const activeAccounts = (accountsData || []).filter(a => a.status === 'ACTIVE');
+      
+      if (activeAccounts.length > 0) {
+        // Get current month date range
+        const now = new Date();
+        const monthStart = format(startOfMonth(now), 'yyyy-MM-dd');
+        const monthEnd = format(endOfMonth(now), 'yyyy-MM-dd');
+        
+        let allTransactions = [];
+        let totalIncome = 0;
+        let totalExpenses = 0;
+        
+        // Fetch transactions for each account
+        for (const account of activeAccounts) {
+          try {
+            const txData = await transactionService.getTransactions(
+              account.id,
+              0,
+              100, // Get more transactions for stats
+              { startDate: monthStart, endDate: monthEnd }
+            );
+            
+            const transactions = txData?.content || txData || [];
+            
+            // Calculate income and expenses for this account
+            transactions.forEach(tx => {
+              const amount = parseFloat(tx.amount || 0);
+              const type = tx.transactionType?.toUpperCase();
+              const status = tx.status?.toUpperCase();
+              
+              // Only count completed transactions
+              if (status === 'COMPLETED' || status === 'SUCCESS') {
+                if (type === 'DEPOSIT') {
+                  totalIncome += amount;
+                } else if (type === 'WITHDRAWAL' || type === 'WITHDRAW') {
+                  totalExpenses += amount;
+                } else if (type === 'TRANSFER') {
+                  // For transfers, check if this account is sender or receiver
+                  if (tx.fromAccountId === account.id) {
+                    totalExpenses += amount;
+                  } else if (tx.toAccountId === account.id) {
+                    totalIncome += amount;
+                  }
+                }
+              }
+            });
+            
+            allTransactions = [...allTransactions, ...transactions];
+          } catch (txErr) {
+            console.error(`Error fetching transactions for account ${account.id}:`, txErr);
+          }
+        }
+        
+        setMonthlyStats({ income: totalIncome, expenses: totalExpenses });
+        
+        // Sort all transactions by date and get most recent
+        allTransactions.sort((a, b) => {
+          const dateA = new Date(a.createdAt || a.timestamp || 0);
+          const dateB = new Date(b.createdAt || b.timestamp || 0);
+          return dateB - dateA;
+        });
+        
+        setRecentTransactions(allTransactions.slice(0, 5));
+      } else {
+        setMonthlyStats({ income: 0, expenses: 0 });
+        setRecentTransactions([]);
+      }
+    } catch (err) {
+      console.error('Dashboard error:', err);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [fetchDashboardData]);
 
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      const accountsData = await accountService.getAccounts();
-      setAccounts(accountsData);
-
-      // Fetch recent transactions for the first account
-      if (accountsData.length > 0) {
-        const transactionsData = await transactionService.getTransactions(
-          accountsData[0].accountNumber,
-          0,
-          5
-        );
-        setRecentTransactions(transactionsData.content || []);
-      }
-    } catch (err) {
-      setError('Failed to load dashboard data');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+  const handleRefresh = () => {
+    fetchDashboardData(true);
   };
 
-  const totalBalance = accounts.reduce((sum, account) => sum + parseFloat(account.balance || 0), 0);
+  const totalBalance = accounts.reduce((sum, account) => {
+    const balance = parseFloat(account.balance || account.availableBalance || 0);
+    return sum + balance;
+  }, 0);
 
   const getTransactionIcon = (type) => {
-    switch (type) {
+    const transactionType = type?.toUpperCase();
+    switch (transactionType) {
       case 'DEPOSIT':
         return <ArrowDownLeft className="h-5 w-5 text-green-600" />;
       case 'WITHDRAWAL':
+      case 'WITHDRAW':
         return <ArrowUpRight className="h-5 w-5 text-red-600" />;
       case 'TRANSFER':
         return <ArrowUpRight className="h-5 w-5 text-blue-600" />;
       default:
         return <CreditCard className="h-5 w-5 text-gray-600" />;
     }
+  };
+
+  const getTransactionColor = (type) => {
+    const transactionType = type?.toUpperCase();
+    switch (transactionType) {
+      case 'DEPOSIT':
+        return 'text-green-600';
+      case 'WITHDRAWAL':
+      case 'WITHDRAW':
+        return 'text-red-600';
+      case 'TRANSFER':
+        return 'text-blue-600';
+      default:
+        return 'text-gray-600';
+    }
+  };
+
+  const formatAmount = (amount) => {
+    return parseFloat(amount || 0).toLocaleString('en-US', { 
+      minimumFractionDigits: 2, 
+      maximumFractionDigits: 2 
+    });
   };
 
   if (loading) {
@@ -79,9 +184,19 @@ const Dashboard = () => {
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600 mt-1">Welcome back! Here's your financial overview.</p>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-gray-600 mt-1">Welcome back! Here's your financial overview.</p>
+          </div>
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+            {refreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
         </div>
 
         {error && (
@@ -100,7 +215,7 @@ const Dashboard = () => {
               <span className="text-sm opacity-90">Total Balance</span>
             </div>
             <div className="space-y-1">
-              <p className="text-3xl font-bold">${totalBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+              <p className="text-3xl font-bold">${formatAmount(totalBalance)}</p>
               <p className="text-sm opacity-90">Across {accounts.length} account{accounts.length !== 1 ? 's' : ''}</p>
             </div>
           </div>
@@ -114,7 +229,7 @@ const Dashboard = () => {
               <span className="text-sm text-gray-600">This Month</span>
             </div>
             <div className="space-y-1">
-              <p className="text-2xl font-bold text-gray-900">$0.00</p>
+              <p className="text-2xl font-bold text-green-600">${formatAmount(monthlyStats.income)}</p>
               <p className="text-sm text-gray-600">Total Income</p>
             </div>
           </div>
@@ -128,7 +243,7 @@ const Dashboard = () => {
               <span className="text-sm text-gray-600">This Month</span>
             </div>
             <div className="space-y-1">
-              <p className="text-2xl font-bold text-gray-900">$0.00</p>
+              <p className="text-2xl font-bold text-red-600">${formatAmount(monthlyStats.expenses)}</p>
               <p className="text-sm text-gray-600">Total Expenses</p>
             </div>
           </div>
@@ -145,9 +260,9 @@ const Dashboard = () => {
             </div>
             <div className="space-y-4">
               {accounts.length > 0 ? (
-                accounts.map((account) => (
+                accounts.slice(0, 3).map((account) => (
                   <div
-                    key={account.accountNumber}
+                    key={account.id || account.accountNumber}
                     className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                   >
                     <div className="flex items-center space-x-4">
@@ -156,12 +271,12 @@ const Dashboard = () => {
                       </div>
                       <div>
                         <p className="font-medium text-gray-900">{account.accountType}</p>
-                        <p className="text-sm text-gray-600">****{account.accountNumber.slice(-4)}</p>
+                        <p className="text-sm text-gray-600">{account.accountNumber}</p>
                       </div>
                     </div>
                     <div className="text-right">
                       <p className="font-semibold text-gray-900">
-                        ${parseFloat(account.balance || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ${formatAmount(account.balance || account.availableBalance)}
                       </p>
                       <p className="text-sm text-gray-600">{account.status}</p>
                     </div>
@@ -171,6 +286,12 @@ const Dashboard = () => {
                 <div className="text-center py-8 text-gray-500">
                   <CreditCard className="h-12 w-12 mx-auto mb-3 text-gray-400" />
                   <p>No accounts found</p>
+                  <Link 
+                    to="/accounts" 
+                    className="mt-2 inline-block text-primary-600 hover:text-primary-700 font-medium"
+                  >
+                    Open your first account
+                  </Link>
                 </div>
               )}
             </div>
@@ -186,34 +307,32 @@ const Dashboard = () => {
             </div>
             <div className="space-y-3">
               {recentTransactions.length > 0 ? (
-                recentTransactions.map((transaction) => (
+                recentTransactions.map((transaction, index) => (
                   <div
-                    key={transaction.transactionId}
+                    key={transaction.id || transaction.transactionId || transaction.transactionReference || index}
                     className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
                   >
                     <div className="flex items-center space-x-3">
                       <div className={`p-2 rounded-full ${
-                        transaction.transactionType === 'DEPOSIT' ? 'bg-green-100' :
-                        transaction.transactionType === 'WITHDRAWAL' ? 'bg-red-100' : 'bg-blue-100'
+                        transaction.transactionType?.toUpperCase() === 'DEPOSIT' ? 'bg-green-100' :
+                        transaction.transactionType?.toUpperCase() === 'WITHDRAWAL' || transaction.transactionType?.toUpperCase() === 'WITHDRAW' ? 'bg-red-100' : 'bg-blue-100'
                       }`}>
                         {getTransactionIcon(transaction.transactionType)}
                       </div>
                       <div>
                         <p className="font-medium text-gray-900 text-sm">
-                          {transaction.transactionType}
+                          {transaction.description || transaction.transactionType || 'Transaction'}
                         </p>
                         <p className="text-xs text-gray-600">
-                          {format(new Date(transaction.timestamp), 'MMM dd, yyyy')}
+                          {transaction.createdAt ? format(new Date(transaction.createdAt), 'MMM dd, yyyy HH:mm') : 
+                           transaction.timestamp ? format(new Date(transaction.timestamp), 'MMM dd, yyyy HH:mm') : 'N/A'}
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className={`font-semibold text-sm ${
-                        transaction.transactionType === 'DEPOSIT' ? 'text-green-600' :
-                        transaction.transactionType === 'WITHDRAWAL' ? 'text-red-600' : 'text-blue-600'
-                      }`}>
-                        {transaction.transactionType === 'DEPOSIT' ? '+' : '-'}
-                        ${parseFloat(transaction.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <p className={`font-semibold text-sm ${getTransactionColor(transaction.transactionType)}`}>
+                        {transaction.transactionType?.toUpperCase() === 'DEPOSIT' ? '+' : '-'}
+                        ${formatAmount(transaction.amount)}
                       </p>
                       <p className="text-xs text-gray-600">{transaction.status}</p>
                     </div>
@@ -249,7 +368,7 @@ const Dashboard = () => {
             </Link>
 
             <Link
-              to="/accounts"
+              to="/transfer"
               className="card hover:shadow-md transition-shadow cursor-pointer group"
             >
               <div className="flex items-center space-x-4">

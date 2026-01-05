@@ -1,0 +1,93 @@
+spring:
+  application:
+    name: transaction-service
+  
+  # Disable Kafka auto-configuration (not actively used)
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
+  
+  kafka:
+    enabled: false
+  
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/transaction_db}
+    username: ${SPRING_DATASOURCE_USERNAME:rrbank}
+    password: ${SPRING_DATASOURCE_PASSWORD:rrbank_secret}
+    driver-class-name: org.postgresql.Driver
+  
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+
+server:
+  port: ${PORT:${SERVER_PORT:8084}}
+
+jwt:
+  secret: ${JWT_SECRET:rrbank-jwt-secret-key-minimum-32-characters-long}
+
+services:
+  ledger-url: ${LEDGER_SERVICE_URL:http://localhost:8085}
+  fraud-url: ${FRAUD_SERVICE_URL:http://localhost:8087}
+  account-url: ${ACCOUNT_SERVICE_URL:http://localhost:8083}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+logging:
+  level:
+    com.rrbank: ${LOG_LEVEL:INFO}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  
+  datasource:
+    url: jdbc:postgresql://postgres:5432/transaction_db
+  
+  data:
+    redis:
+      host: redis
+
+services:
+  ledger-url: http://ledger-service:8085
+  fraud-url: http://fraud-service:8087
+  account-url: http://account-service:8083
+
+---
+spring:
+  config:
+    activate:
+      on-profile: production
+  
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: update
+
+logging:
+  level:
+    com.rrbank: INFO

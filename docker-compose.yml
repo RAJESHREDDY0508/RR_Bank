@@ -1,10 +1,8 @@
 # ============================================================
-# RR-Bank Microservices - Production Docker Compose
+# RR-Bank Microservices - Docker Compose
 # ============================================================
 # Architecture: 8 Microservices + API Gateway + Infrastructure
 # ============================================================
-
-version: '3.8'
 
 services:
   # ============================================================
@@ -98,12 +96,14 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      kafka:
+        condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8081/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 40s
+      start_period: 60s
     networks:
       - rrbank-network
 
@@ -123,18 +123,49 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-rrbank_secret}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       JWT_SECRET: ${JWT_SECRET:-rrbank-jwt-secret-key-minimum-32-characters-long}
-      AUTH_SERVICE_URL: http://auth-service:8081
     depends_on:
       postgres:
         condition: service_healthy
-      auth-service:
-        condition: service_healthy
+      kafka:
+        condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8082/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 40s
+      start_period: 60s
+    networks:
+      - rrbank-network
+
+  # Ledger Service (8085) - Source of Truth - START EARLY
+  ledger-service:
+    build:
+      context: ./services/ledger-service
+      dockerfile: Dockerfile
+    container_name: rrbank-ledger
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8085
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ledger_db
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-rrbank}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-rrbank_secret}
+      SPRING_REDIS_HOST: redis
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8085/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     networks:
       - rrbank-network
 
@@ -162,14 +193,48 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      kafka:
+        condition: service_started
       ledger-service:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8083/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 40s
+      start_period: 60s
+    networks:
+      - rrbank-network
+
+  # Fraud Service (8087)
+  fraud-service:
+    build:
+      context: ./services/fraud-service
+      dockerfile: Dockerfile
+    container_name: rrbank-fraud
+    ports:
+      - "8087:8087"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: 8087
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/fraud_db
+      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-rrbank}
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-rrbank_secret}
+      SPRING_REDIS_HOST: redis
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8087/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
     networks:
       - rrbank-network
 
@@ -198,47 +263,18 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      kafka:
+        condition: service_started
       ledger-service:
-        condition: service_healthy
-      account-service:
-        condition: service_healthy
+        condition: service_started
+      fraud-service:
+        condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8084/actuator/health"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8084/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 40s
-    networks:
-      - rrbank-network
-
-  # Ledger Service (8085) - Source of Truth
-  ledger-service:
-    build:
-      context: ./services/ledger-service
-      dockerfile: Dockerfile
-    container_name: rrbank-ledger
-    ports:
-      - "8085:8085"
-    environment:
-      SPRING_PROFILES_ACTIVE: docker
-      SERVER_PORT: 8085
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ledger_db
-      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-rrbank}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-rrbank_secret}
-      SPRING_REDIS_HOST: redis
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      INTERNAL_SERVICE_TOKEN: ${INTERNAL_TOKEN:-internal-service-token-secret}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8085/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
+      start_period: 60s
     networks:
       - rrbank-network
 
@@ -261,12 +297,14 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      kafka:
+        condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8086/actuator/health"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8086/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 40s
+      start_period: 60s
     networks:
       - rrbank-network
 
@@ -285,47 +323,17 @@ services:
       SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-rrbank}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-rrbank_secret}
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      INTERNAL_SERVICE_TOKEN: ${INTERNAL_TOKEN:-internal-service-token-secret}
     depends_on:
       postgres:
         condition: service_healthy
+      kafka:
+        condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8088/actuator/health"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8088/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 40s
-    networks:
-      - rrbank-network
-
-  # Fraud Service (8087)
-  fraud-service:
-    build:
-      context: ./services/fraud-service
-      dockerfile: Dockerfile
-    container_name: rrbank-fraud
-    ports:
-      - "8087:8087"
-    environment:
-      SPRING_PROFILES_ACTIVE: docker
-      SERVER_PORT: 8087
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/fraud_db
-      SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-rrbank}
-      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-rrbank_secret}
-      SPRING_REDIS_HOST: redis
-      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      INTERNAL_SERVICE_TOKEN: ${INTERNAL_TOKEN:-internal-service-token-secret}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8087/actuator/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 40s
+      start_period: 60s
     networks:
       - rrbank-network
 
@@ -351,9 +359,23 @@ services:
       AUDIT_SERVICE_URL: http://audit-service:8088
     depends_on:
       auth-service:
-        condition: service_healthy
+        condition: service_started
+      customer-service:
+        condition: service_started
+      account-service:
+        condition: service_started
+      transaction-service:
+        condition: service_started
+      ledger-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+      fraud-service:
+        condition: service_started
+      audit-service:
+        condition: service_started
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -372,7 +394,8 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      - api-gateway
+      api-gateway:
+        condition: service_started
     networks:
       - rrbank-network
 

@@ -1,0 +1,19 @@
+# ============================================================
+# RR-Bank - Railway Deployment Configuration
+# ============================================================
+# This file configures Railway deployment for the API Gateway
+# ============================================================
+
+[build]
+builder = "dockerfile"
+dockerfilePath = "api-gateway/Dockerfile"
+
+[deploy]
+startCommand = "java -jar app.jar"
+healthcheckPath = "/actuator/health"
+healthcheckTimeout = 300
+restartPolicyType = "always"
+
+[[services]]
+name = "api-gateway"
+region = "us-west1"
