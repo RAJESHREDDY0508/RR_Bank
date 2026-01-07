@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Alert</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7fa;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, #dc2626 0%, #f97316 100%); border-radius: 12px 12px 0 0;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 24px;">🔐 Security Alert</h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding: 30px 40px;">
+                            <p style="font-size: 16px; color: #1f2937; margin: 0 0 20px;">
+                                Hello <strong th:text="${firstName}">Customer</strong>,
+                            </p>
+                            
+                            <p style="font-size: 16px; color: #4b5563; line-height: 1.6; margin: 0 0 25px;">
+                                We detected a <strong th:text="${alertType}">security event</strong> on your account. Here are the details:
+                            </p>
+                            
+                            <!-- Alert Details -->
+                            <table role="presentation" style="width: 100%; background-color: #fef2f2; border-radius: 8px; border: 1px solid #fecaca; margin-bottom: 25px;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <table role="presentation" style="width: 100%;">
+                                            <tr>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #fecaca;">
+                                                    <span style="color: #991b1b; font-size: 14px;">Event Type</span>
+                                                </td>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #fecaca; text-align: right;">
+                                                    <strong style="color: #7f1d1d;" th:text="${alertType}">Login</strong>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #fecaca;">
+                                                    <span style="color: #991b1b; font-size: 14px;">Device</span>
+                                                </td>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #fecaca; text-align: right;">
+                                                    <strong style="color: #7f1d1d;" th:text="${deviceInfo}">Unknown Device</strong>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #fecaca;">
+                                                    <span style="color: #991b1b; font-size: 14px;">IP Address</span>
+                                                </td>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #fecaca; text-align: right;">
+                                                    <strong style="color: #7f1d1d; font-family: monospace;" th:text="${ipAddress}">0.0.0.0</strong>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #fecaca;">
+                                                    <span style="color: #991b1b; font-size: 14px;">Location</span>
+                                                </td>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #fecaca; text-align: right;">
+                                                    <strong style="color: #7f1d1d;" th:text="${location}">Unknown</strong>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0;">
+                                                    <span style="color: #991b1b; font-size: 14px;">Time</span>
+                                                </td>
+                                                <td style="padding: 8px 0; text-align: right;">
+                                                    <strong style="color: #7f1d1d;" th:text="${timestamp}">Jan 1, 2024</strong>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="font-size: 15px; color: #4b5563; line-height: 1.6; margin: 0 0 25px;">
+                                <strong>Was this you?</strong> If you recognize this activity, no action is needed. If not, please:
+                            </p>
+
+                            <table role="presentation" style="width: 100%; margin: 20px 0;">
+                                <tr>
+                                    <td style="padding: 15px; background-color: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                                        <p style="margin: 0 0 10px; color: #92400e;">1. Change your password immediately</p>
+                                        <p style="margin: 0 0 10px; color: #92400e;">2. Review your recent transactions</p>
+                                        <p style="margin: 0; color: #92400e;">3. Contact us if you see unauthorized activity</p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <div style="text-align: center; margin: 25px 0;">
+                                <a th:href="${securityUrl}" style="display: inline-block; padding: 12px 28px; background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">
+                                    Review Security Settings
+                                </a>
+                            </div>
+
+                            <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin: 20px 0 0; text-align: center;">
+                                Need help? Contact our security team at 
+                                <a th:href="'mailto:' + ${supportEmail}" style="color: #dc2626; text-decoration: none; font-weight: 600;" th:text="${supportEmail}">security@rrbank.com</a>
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 25px 40px; background-color: #f9fafb; border-radius: 0 0 12px 12px; text-align: center;">
+                            <p style="margin: 0 0 10px; font-size: 14px; color: #6b7280;">
+                                © 2024 <span th:text="${appName}">RR Bank</span>. All rights reserved.
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #9ca3af;">
+                                This is an automated security notification. Please do not reply directly to this email.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

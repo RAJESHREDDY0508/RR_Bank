@@ -46,6 +46,13 @@ public class Notification {
     }
 
     public enum NotificationType {
-        INFO, SUCCESS, WARNING, ERROR, TRANSACTION, SECURITY
+        INFO,
+        SUCCESS,
+        WARNING,
+        ERROR,
+        TRANSACTION,
+        SECURITY,
+        ACCOUNT,
+        ALERT
     }
 }

@@ -1,8 +1,8 @@
 package com.rrbank.transaction.event;
 
 import com.rrbank.transaction.entity.Transaction;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
@@ -11,29 +11,36 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Component
-@RequiredArgsConstructor
 @Slf4j
 public class TransactionEventProducer {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    private static final String TX_INITIATED_TOPIC = "transaction-initiated";
-    private static final String TX_COMPLETED_TOPIC = "transaction-completed";
-    private static final String TX_FAILED_TOPIC = "transaction-failed";
+    private static final String TRANSACTION_EVENTS_TOPIC = "transaction-events";
+
+    @Autowired(required = false)
+    public TransactionEventProducer(KafkaTemplate<String, Object> kafkaTemplate) {
+        this.kafkaTemplate = kafkaTemplate;
+    }
 
     public void publishTransactionInitiated(Transaction tx) {
-        publishEvent(TX_INITIATED_TOPIC, tx, "TRANSACTION_INITIATED");
+        publishEvent(tx, "TRANSACTION_INITIATED");
     }
 
     public void publishTransactionCompleted(Transaction tx) {
-        publishEvent(TX_COMPLETED_TOPIC, tx, "TRANSACTION_COMPLETED");
+        publishEvent(tx, "TRANSACTION_COMPLETED");
     }
 
     public void publishTransactionFailed(Transaction tx) {
-        publishEvent(TX_FAILED_TOPIC, tx, "TRANSACTION_FAILED");
+        publishEvent(tx, "TRANSACTION_FAILED");
     }
 
-    private void publishEvent(String topic, Transaction tx, String eventType) {
+    private void publishEvent(Transaction tx, String eventType) {
+        if (kafkaTemplate == null) {
+            log.debug("Kafka disabled - skipping {} event for transaction: {}", eventType, tx.getId());
+            return;
+        }
+        
         try {
             Map<String, Object> event = new HashMap<>();
             event.put("eventType", eventType);
@@ -43,11 +50,14 @@ public class TransactionEventProducer {
             event.put("fromAccountId", tx.getFromAccountId() != null ? tx.getFromAccountId().toString() : null);
             event.put("toAccountId", tx.getToAccountId() != null ? tx.getToAccountId().toString() : null);
             event.put("amount", tx.getAmount());
+            event.put("currency", tx.getCurrency());
             event.put("status", tx.getStatus().name());
             event.put("failureReason", tx.getFailureReason());
+            event.put("description", tx.getDescription());
+            event.put("initiatedBy", tx.getInitiatedBy() != null ? tx.getInitiatedBy().toString() : null);
             event.put("timestamp", LocalDateTime.now().toString());
 
-            kafkaTemplate.send(topic, tx.getId().toString(), event);
+            kafkaTemplate.send(TRANSACTION_EVENTS_TOPIC, tx.getId().toString(), event);
             log.info("Published {} event for transaction: {}", eventType, tx.getId());
         } catch (Exception e) {
             log.error("Failed to publish {} event: {}", eventType, e.getMessage());

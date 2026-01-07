@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to RR Bank</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7fa;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); border-radius: 12px 12px 0 0;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 28px;">Welcome to <span th:text="${appName}">RR Bank</span>! 🎉</h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            <p style="font-size: 18px; color: #1f2937; margin: 0 0 20px;">
+                                Hello <strong th:text="${firstName}">Customer</strong>,
+                            </p>
+                            <p style="font-size: 16px; color: #4b5563; line-height: 1.6; margin: 0 0 20px;">
+                                Thank you for choosing <span th:text="${appName}">RR Bank</span> for your banking needs. We're thrilled to have you as part of our family!
+                            </p>
+                            <p style="font-size: 16px; color: #4b5563; line-height: 1.6; margin: 0 0 20px;">
+                                Your account has been successfully created. Here's what you can do next:
+                            </p>
+                            
+                            <table role="presentation" style="width: 100%; margin: 30px 0;">
+                                <tr>
+                                    <td style="padding: 15px; background-color: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                                        <p style="margin: 0 0 10px; font-weight: 600; color: #1e40af;">✓ Open your first bank account</p>
+                                        <p style="margin: 0 0 10px; font-weight: 600; color: #1e40af;">✓ Make deposits and transfers</p>
+                                        <p style="margin: 0 0 10px; font-weight: 600; color: #1e40af;">✓ Track your transactions</p>
+                                        <p style="margin: 0; font-weight: 600; color: #1e40af;">✓ Manage your finances securely</p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <div style="text-align: center; margin: 30px 0;">
+                                <a th:href="${loginUrl}" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                                    Get Started →
+                                </a>
+                            </div>
+
+                            <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin: 20px 0 0;">
+                                If you have any questions, our support team is always here to help at 
+                                <a th:href="'mailto:' + ${supportEmail}" style="color: #3b82f6; text-decoration: none;" th:text="${supportEmail}">support@rrbank.com</a>
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 30px 40px; background-color: #f9fafb; border-radius: 0 0 12px 12px; text-align: center;">
+                            <p style="margin: 0 0 10px; font-size: 14px; color: #6b7280;">
+                                © 2024 <span th:text="${appName}">RR Bank</span>. All rights reserved.
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #9ca3af;">
+                                This email was sent to you because you created an account with us.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

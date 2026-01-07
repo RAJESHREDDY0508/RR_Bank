@@ -126,6 +126,17 @@ spring:
 spring:
   config:
     activate:
+      on-profile: oracle
+
+logging:
+  level:
+    org.springframework.cloud.gateway: WARN
+    com.rrbank: INFO
+
+---
+spring:
+  config:
+    activate:
       on-profile: production
 
 logging:

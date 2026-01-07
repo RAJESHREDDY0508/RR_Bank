@@ -18,7 +18,7 @@ public class LedgerEventProducer {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
-    private static final String LEDGER_ENTRY_TOPIC = "ledger-entry-created";
+    private static final String LEDGER_EVENTS_TOPIC = "ledger-events";
     private static final String BALANCE_UPDATED_TOPIC = "balance-updated";
 
     @Autowired(required = false)
@@ -41,9 +41,10 @@ public class LedgerEventProducer {
             event.put("entryType", entry.getEntryType().name());
             event.put("amount", entry.getAmount());
             event.put("runningBalance", entry.getRunningBalance());
+            event.put("description", entry.getDescription());
             event.put("timestamp", LocalDateTime.now().toString());
 
-            kafkaTemplate.send(LEDGER_ENTRY_TOPIC, entry.getAccountId().toString(), event);
+            kafkaTemplate.send(LEDGER_EVENTS_TOPIC, entry.getAccountId().toString(), event);
             log.info("Published LEDGER_ENTRY_CREATED event for entry: {}", entry.getId());
         } catch (Exception e) {
             log.error("Failed to publish LEDGER_ENTRY_CREATED event: {}", e.getMessage());

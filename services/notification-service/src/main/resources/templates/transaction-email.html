@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaction Notification</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7fa;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td th:style="'padding: 40px 40px 20px; text-align: center; border-radius: 12px 12px 0 0; background: linear-gradient(135deg, ' + (${isDebit} ? '#dc2626 0%, #ef4444 100%' : '#059669 0%, #10b981 100%') + ');'">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 24px;">
+                                <span th:text="${transactionType}">Transaction</span> Alert
+                            </h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Amount Display -->
+                    <tr>
+                        <td style="padding: 30px 40px; text-align: center; border-bottom: 1px solid #e5e7eb;">
+                            <p style="margin: 0 0 5px; font-size: 14px; color: #6b7280; text-transform: uppercase;">Amount</p>
+                            <p th:style="'margin: 0; font-size: 42px; font-weight: 700; color: ' + (${isDebit} ? '#dc2626' : '#059669') + ';'">
+                                <span th:if="${isDebit}">-</span><span th:unless="${isDebit}">+</span><span th:text="${amount}">$0.00</span>
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding: 30px 40px;">
+                            <p style="font-size: 16px; color: #1f2937; margin: 0 0 25px;">
+                                Hello <strong th:text="${firstName}">Customer</strong>,
+                            </p>
+                            
+                            <!-- Transaction Details -->
+                            <table role="presentation" style="width: 100%; background-color: #f9fafb; border-radius: 8px; margin-bottom: 25px;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <table role="presentation" style="width: 100%;">
+                                            <tr>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                                    <span style="color: #6b7280; font-size: 14px;">Transaction Type</span>
+                                                </td>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                                    <strong style="color: #1f2937;" th:text="${transactionType}">Deposit</strong>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                                    <span style="color: #6b7280; font-size: 14px;">Account</span>
+                                                </td>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                                    <strong style="color: #1f2937;" th:text="${accountNumber}">****1234</strong>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                                    <span style="color: #6b7280; font-size: 14px;">Description</span>
+                                                </td>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                                    <strong style="color: #1f2937;" th:text="${description}">Transaction</strong>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                                    <span style="color: #6b7280; font-size: 14px;">Date &amp; Time</span>
+                                                </td>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                                    <strong style="color: #1f2937;" th:text="${transactionDate}">Jan 1, 2024</strong>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                                                    <span style="color: #6b7280; font-size: 14px;">Reference</span>
+                                                </td>
+                                                <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; text-align: right;">
+                                                    <strong style="color: #1f2937; font-family: monospace;" th:text="${transactionRef}">TXN123</strong>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding: 12px 0 0;">
+                                                    <span style="color: #6b7280; font-size: 14px;">New Balance</span>
+                                                </td>
+                                                <td style="padding: 12px 0 0; text-align: right;">
+                                                    <strong style="color: #1e40af; font-size: 18px;" th:text="${newBalance}">$0.00</strong>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <div style="text-align: center; margin: 25px 0;">
+                                <a th:href="${dashboardUrl}" style="display: inline-block; padding: 12px 28px; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">
+                                    View Dashboard
+                                </a>
+                            </div>
+
+                            <p style="font-size: 13px; color: #6b7280; line-height: 1.6; margin: 20px 0 0; padding: 15px; background-color: #fef3c7; border-radius: 8px;">
+                                🔒 <strong>Security Tip:</strong> If you didn't make this transaction, please contact us immediately at security@rrbank.com
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 25px 40px; background-color: #f9fafb; border-radius: 0 0 12px 12px; text-align: center;">
+                            <p style="margin: 0 0 10px; font-size: 14px; color: #6b7280;">
+                                © 2024 <span th:text="${appName}">RR Bank</span>. All rights reserved.
+                            </p>
+                            <p style="margin: 0; font-size: 12px; color: #9ca3af;">
+                                This is an automated notification for your account activity.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

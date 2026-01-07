@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: audit-service
+  namespace: rrbank
+  labels:
+    app: audit-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: audit-service
+  template:
+    metadata:
+      labels:
+        app: audit-service
+    spec:
+      containers:
+        - name: audit-service
+          image: ${OCI_REGION}.ocir.io/${OCI_NAMESPACE}/rrbank/audit-service:latest
+          ports:
+            - containerPort: 8088
+          envFrom:
+            - configMapRef:
+                name: rrbank-config
+          env:
+            - name: SERVER_PORT
+              value: "8088"
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rrbank-secrets
+                  key: DATABASE_URL
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: rrbank-secrets
+                  key: DATABASE_USERNAME
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rrbank-secrets
+                  key: DATABASE_PASSWORD
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                secretKeyRef:
+                  name: rrbank-secrets
+                  key: KAFKA_BOOTSTRAP_SERVERS
+            - name: SPRING_KAFKA_PROPERTIES_SASL_JAAS_CONFIG
+              valueFrom:
+                secretKeyRef:
+                  name: rrbank-secrets
+                  key: KAFKA_SASL_JAAS_CONFIG
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8088
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8088
+            initialDelaySeconds: 30
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: audit-service
+  namespace: rrbank
+spec:
+  selector:
+    app: audit-service
+  ports:
+    - port: 8088
+      targetPort: 8088
+  type: ClusterIP

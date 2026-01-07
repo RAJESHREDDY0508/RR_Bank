@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Created</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7fa;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); border-radius: 12px 12px 0 0;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 24px;">🎊 New Account Created!</h1>
+                        </td>
+                    </tr>
+                    
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding: 40px;">
+                            <p style="font-size: 16px; color: #1f2937; margin: 0 0 20px;">
+                                Congratulations <strong th:text="${firstName}">Customer</strong>! 🎉
+                            </p>
+                            
+                            <p style="font-size: 16px; color: #4b5563; line-height: 1.6; margin: 0 0 25px;">
+                                Your new <strong th:text="${accountType}">Checking</strong> account has been successfully created and is ready to use.
+                            </p>
+                            
+                            <!-- Account Details -->
+                            <table role="presentation" style="width: 100%; background-color: #f5f3ff; border-radius: 8px; margin-bottom: 25px;">
+                                <tr>
+                                    <td style="padding: 25px; text-align: center;">
+                                        <p style="margin: 0 0 5px; font-size: 14px; color: #6b7280;">Account Number</p>
+                                        <p style="margin: 0; font-size: 28px; font-weight: 700; color: #7c3aed; font-family: monospace; letter-spacing: 2px;" th:text="${accountNumber}">CH12-3456-7890</p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="font-size: 15px; color: #4b5563; line-height: 1.6; margin: 0 0 20px;">
+                                Here's what you can do with your new account:
+                            </p>
+
+                            <table role="presentation" style="width: 100%; margin: 20px 0;">
+                                <tr>
+                                    <td style="padding: 15px; background-color: #f0fdf4; border-radius: 8px; border-left: 4px solid #10b981;">
+                                        <p style="margin: 0 0 10px; color: #065f46;">✓ Make deposits and withdrawals</p>
+                                        <p style="margin: 0 0 10px; color: #065f46;">✓ Transfer money to other accounts</p>
+                                        <p style="margin: 0 0 10px; color: #065f46;">✓ View transaction history</p>
+                                        <p style="margin: 0; color: #065f46;">✓ Export statements for your records</p>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <div style="text-align: center; margin: 30px 0;">
+                                <a th:href="${dashboardUrl}" style="display: inline-block; padding: 14px 32px; background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); color: #ffffff; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                                    View Your Account →
+                                </a>
+                            </div>
+
+                            <p style="font-size: 14px; color: #6b7280; line-height: 1.6; margin: 20px 0 0; padding: 15px; background-color: #f3f4f6; border-radius: 8px;">
+                                💡 <strong>Tip:</strong> Save your account number for easy transfers. You can share it with others to receive money directly into your account.
+                            </p>
+                        </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                        <td style="padding: 25px 40px; background-color: #f9fafb; border-radius: 0 0 12px 12px; text-align: center;">
+                            <p style="margin: 0 0 10px; font-size: 14px; color: #6b7280;">
+                                © 2024 <span th:text="${appName}">RR Bank</span>. All rights reserved.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

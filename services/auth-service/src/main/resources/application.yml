@@ -2,19 +2,15 @@ spring:
   application:
     name: auth-service
   
-  # Disable Kafka auto-configuration (not actively used)
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
-  
-  kafka:
-    enabled: false
-  
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/auth_db}
     username: ${SPRING_DATASOURCE_USERNAME:rrbank}
     password: ${SPRING_DATASOURCE_PASSWORD:rrbank_secret}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
   
   jpa:
     hibernate:
@@ -28,14 +24,31 @@ spring:
     redis:
       host: ${SPRING_REDIS_HOST:localhost}
       port: ${SPRING_REDIS_PORT:6379}
+      password: ${SPRING_REDIS_PASSWORD:}
+      ssl:
+        enabled: ${SPRING_DATA_REDIS_SSL_ENABLED:false}
+  
+  kafka:
+    enabled: ${SPRING_KAFKA_ENABLED:false}
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    properties:
+      security:
+        protocol: ${SPRING_KAFKA_PROPERTIES_SECURITY_PROTOCOL:}
+      sasl:
+        mechanism: ${SPRING_KAFKA_PROPERTIES_SASL_MECHANISM:}
+        jaas:
+          config: ${SPRING_KAFKA_PROPERTIES_SASL_JAAS_CONFIG:}
 
 server:
   port: ${PORT:${SERVER_PORT:8081}}
 
 jwt:
   secret: ${JWT_SECRET:rrbank-jwt-secret-key-minimum-32-characters-long}
-  access-token-expiration: 86400000
-  refresh-token-expiration: 604800000
+  access-token-expiration: ${JWT_EXPIRATION:86400000}
+  refresh-token-expiration: ${JWT_REFRESH_EXPIRATION:604800000}
+
+services:
+  notification-url: ${SERVICES_NOTIFICATION_URL:http://localhost:8086}
 
 management:
   endpoints:
@@ -68,6 +81,36 @@ spring:
   data:
     redis:
       host: redis
+  
+  kafka:
+    enabled: true
+    bootstrap-servers: kafka:29092
+
+services:
+  notification-url: http://notification-service:8086
+
+---
+spring:
+  config:
+    activate:
+      on-profile: oracle
+  
+  kafka:
+    enabled: true
+    properties:
+      security:
+        protocol: SASL_SSL
+      sasl:
+        mechanism: PLAIN
+  
+  jpa:
+    show-sql: false
+    hibernate:
+      ddl-auto: update
+
+logging:
+  level:
+    com.rrbank: INFO
 
 ---
 spring:

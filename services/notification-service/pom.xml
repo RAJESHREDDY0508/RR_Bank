@@ -9,7 +9,7 @@
     <groupId>com.rrbank</groupId>
     <artifactId>notification-service</artifactId>
     <version>1.0.0</version>
-    <description>Notification Microservice</description>
+    <description>Notification Microservice with Email Support</description>
     <properties>
         <java.version>17</java.version>
     </properties>
@@ -25,6 +25,18 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-thymeleaf</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.kafka</groupId>

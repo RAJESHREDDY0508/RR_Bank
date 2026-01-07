@@ -27,6 +27,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final UserEventProducer userEventProducer;
+    private final NotificationServiceClient notificationClient;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -55,11 +56,23 @@ public class AuthService {
         // Publish user created event
         userEventProducer.publishUserCreated(user);
 
+        // Send welcome email
+        notificationClient.sendWelcomeEmail(
+            user.getId().toString(),
+            user.getEmail(),
+            user.getFirstName()
+        );
+
         return generateAuthResponse(user);
     }
 
     @Transactional
     public AuthResponse login(LoginRequest request) {
+        return login(request, null, null);
+    }
+
+    @Transactional
+    public AuthResponse login(LoginRequest request, String ipAddress, String userAgent) {
         log.info("Login attempt for: {}", request.getUsernameOrEmail());
 
         User user = userRepository.findByUsernameOrEmail(
@@ -74,12 +87,37 @@ public class AuthService {
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             user.incrementFailedAttempts();
             userRepository.save(user);
+            
+            // Send security alert for failed login attempt after multiple failures
+            if (user.getFailedLoginAttempts() >= 3) {
+                notificationClient.sendSecurityAlert(
+                    user.getId().toString(),
+                    user.getEmail(),
+                    user.getFirstName(),
+                    "Multiple Failed Login Attempts",
+                    userAgent,
+                    ipAddress,
+                    null
+                );
+            }
+            
             throw new RuntimeException("Invalid credentials");
         }
 
         user.resetFailedAttempts();
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
+
+        // Send security alert for new login
+        notificationClient.sendSecurityAlert(
+            user.getId().toString(),
+            user.getEmail(),
+            user.getFirstName(),
+            "New Login",
+            userAgent,
+            ipAddress,
+            null
+        );
 
         log.info("User logged in successfully: {}", user.getId());
         return generateAuthResponse(user);
@@ -126,6 +164,26 @@ public class AuthService {
                     .valid(false)
                     .build();
         }
+    }
+
+    @Transactional
+    public void initiatePasswordReset(String email) {
+        log.info("Initiating password reset for: {}", email);
+        
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Generate reset token
+        String resetToken = UUID.randomUUID().toString();
+        
+        // TODO: Store reset token in database with expiry
+        
+        // Send password reset email
+        notificationClient.sendPasswordResetEmail(
+            user.getEmail(),
+            user.getFirstName(),
+            resetToken
+        );
     }
 
     private AuthResponse generateAuthResponse(User user) {
