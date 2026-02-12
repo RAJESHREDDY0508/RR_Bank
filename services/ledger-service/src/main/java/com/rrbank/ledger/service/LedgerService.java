@@ -31,13 +31,26 @@ public class LedgerService {
      */
     @Transactional
     public LedgerEntryResponse credit(CreateEntryRequest request) {
-        log.info("Crediting {} to account {}", request.getAmount(), request.getAccountId());
+        log.info("=== CREDIT REQUEST: account={}, amount={}, txn={} ===", 
+                request.getAccountId(), request.getAmount(), request.getTransactionId());
         
-        LedgerEntry entry = createEntry(request.getAccountId(), request.getTransactionId(),
-                LedgerEntry.EntryType.CREDIT, request.getAmount(), request.getDescription());
-        
-        eventProducer.publishLedgerEntryCreated(entry);
-        return toResponse(entry);
+        try {
+            LedgerEntry entry = createEntry(request.getAccountId(), request.getTransactionId(),
+                    LedgerEntry.EntryType.CREDIT, request.getAmount(), request.getDescription());
+            
+            try {
+                eventProducer.publishLedgerEntryCreated(entry);
+            } catch (Exception e) {
+                log.warn("Failed to publish ledger event (non-fatal): {}", e.getMessage());
+            }
+            
+            log.info("=== CREDIT SUCCESS: entry={}, newBalance={} ===", 
+                    entry.getId(), entry.getRunningBalance());
+            return toResponse(entry);
+        } catch (Exception e) {
+            log.error("=== CREDIT FAILED: {} ===", e.getMessage(), e);
+            throw e;
+        }
     }
 
     /**
@@ -46,19 +59,36 @@ public class LedgerService {
      */
     @Transactional
     public LedgerEntryResponse debit(CreateEntryRequest request) {
-        log.info("Debiting {} from account {}", request.getAmount(), request.getAccountId());
+        log.info("=== DEBIT REQUEST: account={}, amount={}, txn={} ===", 
+                request.getAccountId(), request.getAmount(), request.getTransactionId());
         
-        // Check balance first
-        BigDecimal currentBalance = getBalanceInternal(request.getAccountId());
-        if (currentBalance.compareTo(request.getAmount()) < 0) {
-            throw new RuntimeException("Insufficient balance. Current: " + currentBalance + ", Required: " + request.getAmount());
+        try {
+            // Check balance first
+            BigDecimal currentBalance = getBalanceInternal(request.getAccountId());
+            log.info("Current balance for account {}: {}", request.getAccountId(), currentBalance);
+            
+            if (currentBalance.compareTo(request.getAmount()) < 0) {
+                String msg = "Insufficient balance. Current: " + currentBalance + ", Required: " + request.getAmount();
+                log.error("=== DEBIT FAILED: {} ===", msg);
+                throw new RuntimeException(msg);
+            }
+            
+            LedgerEntry entry = createEntry(request.getAccountId(), request.getTransactionId(),
+                    LedgerEntry.EntryType.DEBIT, request.getAmount(), request.getDescription());
+            
+            try {
+                eventProducer.publishLedgerEntryCreated(entry);
+            } catch (Exception e) {
+                log.warn("Failed to publish ledger event (non-fatal): {}", e.getMessage());
+            }
+            
+            log.info("=== DEBIT SUCCESS: entry={}, newBalance={} ===", 
+                    entry.getId(), entry.getRunningBalance());
+            return toResponse(entry);
+        } catch (Exception e) {
+            log.error("=== DEBIT FAILED: {} ===", e.getMessage(), e);
+            throw e;
         }
-        
-        LedgerEntry entry = createEntry(request.getAccountId(), request.getTransactionId(),
-                LedgerEntry.EntryType.DEBIT, request.getAmount(), request.getDescription());
-        
-        eventProducer.publishLedgerEntryCreated(entry);
-        return toResponse(entry);
     }
 
     /**
@@ -66,8 +96,8 @@ public class LedgerService {
      */
     @Transactional
     public void transfer(TransferRequest request) {
-        log.info("Transferring {} from {} to {}", 
-                request.getAmount(), request.getFromAccountId(), request.getToAccountId());
+        log.info("=== TRANSFER REQUEST: from={}, to={}, amount={} ===", 
+                request.getFromAccountId(), request.getToAccountId(), request.getAmount());
         
         // Debit source
         CreateEntryRequest debitReq = CreateEntryRequest.builder()
@@ -88,6 +118,8 @@ public class LedgerService {
                 .description("Transfer from " + request.getFromAccountId())
                 .build();
         credit(creditReq);
+        
+        log.info("=== TRANSFER SUCCESS ===");
     }
 
     /**
@@ -96,6 +128,7 @@ public class LedgerService {
     @Transactional(readOnly = true)
     public BalanceResponse getBalance(UUID accountId) {
         BigDecimal balance = getBalanceInternal(accountId);
+        log.info("Balance for account {}: {}", accountId, balance);
         return BalanceResponse.builder()
                 .accountId(accountId.toString())
                 .balance(balance)
@@ -119,7 +152,7 @@ public class LedgerService {
     @Transactional
     public void rebuildBalanceCache(UUID accountId) {
         log.info("Rebuilding balance cache for account: {}", accountId);
-        BigDecimal balance = ledgerEntryRepository.calculateBalance(accountId);
+        BigDecimal balance = getBalanceInternal(accountId);
         
         BalanceCache cache = balanceCacheRepository.findById(accountId)
                 .orElse(BalanceCache.builder().accountId(accountId).build());
@@ -131,6 +164,8 @@ public class LedgerService {
     private LedgerEntry createEntry(UUID accountId, UUID transactionId, 
                                      LedgerEntry.EntryType entryType, 
                                      BigDecimal amount, String description) {
+        log.debug("Creating ledger entry: account={}, type={}, amount={}", accountId, entryType, amount);
+        
         // Calculate new running balance
         BigDecimal currentBalance = getBalanceInternal(accountId);
         BigDecimal newBalance = entryType == LedgerEntry.EntryType.CREDIT 
@@ -147,26 +182,36 @@ public class LedgerService {
                 .build();
         
         entry = ledgerEntryRepository.save(entry);
+        log.debug("Ledger entry saved: id={}, runningBalance={}", entry.getId(), entry.getRunningBalance());
         
         // Update cache
         updateBalanceCache(accountId, newBalance);
         
-        eventProducer.publishBalanceUpdated(accountId, newBalance);
+        try {
+            eventProducer.publishBalanceUpdated(accountId, newBalance);
+        } catch (Exception e) {
+            log.warn("Failed to publish balance update event (non-fatal): {}", e.getMessage());
+        }
         
         return entry;
     }
 
     private BigDecimal getBalanceInternal(UUID accountId) {
-        BigDecimal balance = ledgerEntryRepository.calculateBalance(accountId);
+        // Use native query for more reliable calculation
+        BigDecimal balance = ledgerEntryRepository.calculateBalanceNative(accountId);
         return balance != null ? balance : BigDecimal.ZERO;
     }
 
     private void updateBalanceCache(UUID accountId, BigDecimal balance) {
-        BalanceCache cache = balanceCacheRepository.findById(accountId)
-                .orElse(BalanceCache.builder().accountId(accountId).build());
-        cache.setBalance(balance);
-        cache.setLastUpdated(LocalDateTime.now());
-        balanceCacheRepository.save(cache);
+        try {
+            BalanceCache cache = balanceCacheRepository.findById(accountId)
+                    .orElse(BalanceCache.builder().accountId(accountId).build());
+            cache.setBalance(balance);
+            cache.setLastUpdated(LocalDateTime.now());
+            balanceCacheRepository.save(cache);
+        } catch (Exception e) {
+            log.warn("Failed to update balance cache (non-fatal): {}", e.getMessage());
+        }
     }
 
     private LedgerEntryResponse toResponse(LedgerEntry entry) {

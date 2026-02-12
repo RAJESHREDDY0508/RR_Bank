@@ -1,41 +1,54 @@
 import apiClient from './client';
-import type { Report } from '../types';
+import type { Report, PageResponse, ApiResponse } from '../types';
 
-export interface ReportGenerateParams {
-  reportType: 'TRANSACTIONS' | 'CUSTOMERS' | 'FRAUD' | 'FINANCIAL';
+export interface ReportFilters {
+  type?: string;
+  status?: string;
   startDate?: string;
   endDate?: string;
-  filters?: Record<string, any>;
-  format: 'PDF' | 'EXCEL' | 'CSV';
+  page?: number;
+  size?: number;
 }
 
 export const reportsApi = {
-  // ✅ FIX: Use /admin/reports path for admin operations
-  generateReport: async (params: ReportGenerateParams): Promise<Report> => {
-    const response = await apiClient.post('/admin/reports/generate', params);
-    return response.data;
+  getReports: async (filters: ReportFilters = {}): Promise<PageResponse<Report>> => {
+    const params = new URLSearchParams();
+    if (filters.type) params.append('type', filters.type);
+    if (filters.status) params.append('status', filters.status);
+    if (filters.startDate) params.append('startDate', filters.startDate);
+    if (filters.endDate) params.append('endDate', filters.endDate);
+    if (filters.page !== undefined) params.append('page', filters.page.toString());
+    if (filters.size !== undefined) params.append('size', filters.size.toString());
+
+    const response = await apiClient.get<ApiResponse<PageResponse<Report>>>(
+      `/admin/reports?${params.toString()}`
+    );
+    return response.data.data;
   },
 
-  getReports: async (page = 0, size = 20): Promise<any> => {
-    const response = await apiClient.get('/admin/reports', {
-      params: { page, size },
+  getReport: async (id: string): Promise<Report> => {
+    const response = await apiClient.get<ApiResponse<Report>>(`/admin/reports/${id}`);
+    return response.data.data;
+  },
+
+  generateReport: async (type: string, parameters?: Record<string, unknown>): Promise<Report> => {
+    const response = await apiClient.post<ApiResponse<Report>>('/admin/reports/generate', {
+      type,
+      parameters,
     });
-    return response.data;
+    return response.data.data;
   },
 
-  getReport: async (reportId: string): Promise<Report> => {
-    const response = await apiClient.get(`/admin/reports/${reportId}`);
-    return response.data;
-  },
-
-  downloadReport: async (reportId: string): Promise<Blob> => {
-    const response = await apiClient.get(`/admin/reports/${reportId}/download`, {
+  downloadReport: async (id: string): Promise<Blob> => {
+    const response = await apiClient.get(`/admin/reports/${id}/download`, {
       responseType: 'blob',
     });
     return response.data;
   },
 
-  deleteReport: async (reportId: string): Promise<void> => {
-    await apiClient.delete(`/admin/reports/${reportId}`);
+  deleteReport: async (id: string): Promise<void> => {
+    await apiClient.delete(`/admin/reports/${id}`);
   },
 };
+
+export default reportsApi;

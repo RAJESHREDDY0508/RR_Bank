@@ -1,25 +1,38 @@
+/**
+ * Responsive Header Component with User Menu and Role Display
+ */
+
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   AppBar,
   Toolbar,
   IconButton,
   Typography,
-  Badge,
+  Box,
   Menu,
   MenuItem,
   Avatar,
-  Box,
   Divider,
+  ListItemIcon,
+  ListItemText,
+  Chip,
+  useTheme,
+  useMediaQuery,
+  Badge,
+  Tooltip,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
-  Notifications,
   AccountCircle,
-  Settings,
   Logout,
+  Settings,
+  Notifications,
+  Security,
+  Person,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
+import { useRBAC } from '../../hooks/useRBAC';
+import { formatRoleName, getPrimaryRole } from '../../utils/permissions';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -27,26 +40,34 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  
+  const { user, logout, roles } = useRBAC();
+  
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [notificationAnchor, setNotificationAnchor] = useState<null | HTMLElement>(null);
 
-  const handleProfileMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
-  };
-
-  const handleNotificationMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
-    setNotificationAnchor(event.currentTarget);
   };
 
   const handleMenuClose = () => {
     setAnchorEl(null);
+  };
+
+  const handleNotificationOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setNotificationAnchor(event.currentTarget);
+  };
+
+  const handleNotificationClose = () => {
     setNotificationAnchor(null);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     handleMenuClose();
-    logout();
+    await logout();
+    navigate('/login');
   };
 
   const handleSettings = () => {
@@ -54,106 +75,203 @@ const Header: React.FC<HeaderProps> = ({ onMenuClick }) => {
     navigate('/settings');
   };
 
+  const handleProfile = () => {
+    handleMenuClose();
+    // Could navigate to profile page if exists
+  };
+
+  const primaryRole = getPrimaryRole();
+  const roleColor = primaryRole === 'SUPER_ADMIN' ? 'error' : 
+                    primaryRole === 'SECURITY_ADMIN' ? 'warning' :
+                    primaryRole === 'AUDITOR' ? 'info' : 'primary';
+
   return (
     <AppBar
       position="fixed"
       sx={{
-        zIndex: (theme) => theme.zIndex.drawer + 1,
-        bgcolor: 'white',
+        zIndex: theme.zIndex.drawer + 1,
+        bgcolor: 'background.paper',
         color: 'text.primary',
         boxShadow: 1,
       }}
     >
-      <Toolbar>
-        <IconButton
-          edge="start"
-          color="inherit"
-          aria-label="menu"
-          onClick={onMenuClick}
-          sx={{ mr: 2 }}
-        >
-          <MenuIcon />
-        </IconButton>
+      <Toolbar sx={{ justifyContent: 'space-between' }}>
+        {/* Left Section */}
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <IconButton
+            color="inherit"
+            aria-label="open drawer"
+            edge="start"
+            onClick={onMenuClick}
+            sx={{ mr: 2 }}
+          >
+            <MenuIcon />
+          </IconButton>
+          
+          {!isMobile && (
+            <Typography variant="h6" noWrap component="div" fontWeight="bold" color="primary">
+              Admin Console
+            </Typography>
+          )}
+        </Box>
 
-        <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 0, fontWeight: 'bold', color: 'primary.main' }}>
-          RR-Bank Admin
-        </Typography>
+        {/* Right Section */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 2 } }}>
+          {/* Role Badge - Hide on very small screens */}
+          {!isMobile && primaryRole && (
+            <Chip
+              icon={<Security fontSize="small" />}
+              label={formatRoleName(primaryRole)}
+              color={roleColor as any}
+              size="small"
+              variant="outlined"
+            />
+          )}
 
-        <Box sx={{ flexGrow: 1 }} />
+          {/* Notifications */}
+          <Tooltip title="Notifications">
+            <IconButton
+              color="inherit"
+              onClick={handleNotificationOpen}
+              size={isMobile ? 'small' : 'medium'}
+            >
+              <Badge badgeContent={0} color="error">
+                <Notifications />
+              </Badge>
+            </IconButton>
+          </Tooltip>
 
-        {/* Notifications */}
-        <IconButton
-          color="inherit"
-          onClick={handleNotificationMenuOpen}
-          sx={{ mr: 2 }}
-        >
-          <Badge badgeContent={3} color="error">
-            <Notifications />
-          </Badge>
-        </IconButton>
+          {/* User Menu */}
+          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <IconButton
+              onClick={handleMenuOpen}
+              size="small"
+              sx={{ ml: 1 }}
+              aria-controls={anchorEl ? 'account-menu' : undefined}
+              aria-haspopup="true"
+              aria-expanded={anchorEl ? 'true' : undefined}
+            >
+              <Avatar
+                sx={{
+                  width: { xs: 32, sm: 40 },
+                  height: { xs: 32, sm: 40 },
+                  bgcolor: 'primary.main',
+                }}
+              >
+                {user?.firstName?.[0] || user?.username?.[0] || 'A'}
+              </Avatar>
+            </IconButton>
+            
+            {!isMobile && (
+              <Box sx={{ ml: 1, display: { xs: 'none', md: 'block' } }}>
+                <Typography variant="body2" fontWeight="medium">
+                  {user?.firstName || user?.username}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {user?.email}
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        </Box>
 
-        {/* Profile */}
-        <IconButton
-          edge="end"
-          aria-label="account"
-          aria-haspopup="true"
-          onClick={handleProfileMenuOpen}
-          color="inherit"
-        >
-          <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
-            {user?.firstName?.[0] || user?.username?.[0] || 'A'}
-          </Avatar>
-        </IconButton>
-
-        {/* Notification Menu */}
-        <Menu
-          anchorEl={notificationAnchor}
-          open={Boolean(notificationAnchor)}
-          onClose={handleMenuClose}
-          onClick={handleMenuClose}
-        >
-          <MenuItem onClick={() => navigate('/fraud-alerts')}>
-            <Typography variant="body2">3 new fraud alerts</Typography>
-          </MenuItem>
-          <MenuItem>
-            <Typography variant="body2">New customer registration</Typography>
-          </MenuItem>
-          <MenuItem>
-            <Typography variant="body2">System health check completed</Typography>
-          </MenuItem>
-          <Divider />
-          <MenuItem onClick={() => navigate('/notifications')}>
-            <Typography variant="body2" color="primary">View all notifications</Typography>
-          </MenuItem>
-        </Menu>
-
-        {/* Profile Menu */}
+        {/* User Menu Dropdown */}
         <Menu
           anchorEl={anchorEl}
+          id="account-menu"
           open={Boolean(anchorEl)}
           onClose={handleMenuClose}
           onClick={handleMenuClose}
+          transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+          PaperProps={{
+            elevation: 3,
+            sx: {
+              minWidth: 220,
+              mt: 1,
+              overflow: 'visible',
+              filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.1))',
+              '&:before': {
+                content: '""',
+                display: 'block',
+                position: 'absolute',
+                top: 0,
+                right: 14,
+                width: 10,
+                height: 10,
+                bgcolor: 'background.paper',
+                transform: 'translateY(-50%) rotate(45deg)',
+                zIndex: 0,
+              },
+            },
+          }}
         >
-          <Box sx={{ px: 2, py: 1 }}>
+          {/* User Info */}
+          <Box sx={{ px: 2, py: 1.5 }}>
             <Typography variant="subtitle1" fontWeight="bold">
-              {user?.firstName || user?.username}
+              {user?.firstName} {user?.lastName}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               {user?.email}
             </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Role: {user?.role || 'ADMIN'}
+            {primaryRole && (
+              <Chip
+                label={formatRoleName(primaryRole)}
+                color={roleColor as any}
+                size="small"
+                sx={{ mt: 1 }}
+              />
+            )}
+          </Box>
+          
+          <Divider />
+          
+          <MenuItem onClick={handleProfile}>
+            <ListItemIcon>
+              <Person fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>My Profile</ListItemText>
+          </MenuItem>
+          
+          <MenuItem onClick={handleSettings}>
+            <ListItemIcon>
+              <Settings fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Settings</ListItemText>
+          </MenuItem>
+          
+          <Divider />
+          
+          <MenuItem onClick={handleLogout} sx={{ color: 'error.main' }}>
+            <ListItemIcon>
+              <Logout fontSize="small" color="error" />
+            </ListItemIcon>
+            <ListItemText>Logout</ListItemText>
+          </MenuItem>
+        </Menu>
+
+        {/* Notifications Menu */}
+        <Menu
+          anchorEl={notificationAnchor}
+          open={Boolean(notificationAnchor)}
+          onClose={handleNotificationClose}
+          transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+          PaperProps={{
+            sx: { minWidth: 280, maxHeight: 400 },
+          }}
+        >
+          <Box sx={{ px: 2, py: 1.5 }}>
+            <Typography variant="subtitle1" fontWeight="bold">
+              Notifications
             </Typography>
           </Box>
           <Divider />
-          <MenuItem onClick={handleSettings}>
-            <Settings fontSize="small" sx={{ mr: 1 }} />
-            Settings
-          </MenuItem>
-          <MenuItem onClick={handleLogout}>
-            <Logout fontSize="small" sx={{ mr: 1 }} />
-            Logout
-          </MenuItem>
+          <Box sx={{ p: 2, textAlign: 'center' }}>
+            <Typography variant="body2" color="text.secondary">
+              No new notifications
+            </Typography>
+          </Box>
         </Menu>
       </Toolbar>
     </AppBar>

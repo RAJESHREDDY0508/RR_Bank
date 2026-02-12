@@ -2,6 +2,7 @@ package com.rrbank.transaction.service;
 
 import com.rrbank.transaction.dto.TransactionDTOs.*;
 import com.rrbank.transaction.entity.Transaction;
+import com.rrbank.transaction.exception.KycNotApprovedException;
 import com.rrbank.transaction.repository.TransactionRepository;
 import com.rrbank.transaction.saga.TransactionSagaOrchestrator;
 import lombok.RequiredArgsConstructor;
@@ -26,10 +27,14 @@ public class TransactionService {
 
     private final TransactionRepository transactionRepository;
     private final TransactionSagaOrchestrator sagaOrchestrator;
+    private final CustomerServiceClient customerServiceClient;
 
     @Transactional
     public TransactionResponse deposit(DepositRequest request, UUID userId) {
         log.info("Processing deposit request for account: {}", request.getAccountId());
+
+        // KYC Verification Guard
+        verifyKycApproved(userId);
 
         if (request.getIdempotencyKey() != null) {
             Optional<Transaction> existing = transactionRepository.findByIdempotencyKey(request.getIdempotencyKey());
@@ -58,6 +63,9 @@ public class TransactionService {
     public TransactionResponse withdraw(WithdrawRequest request, UUID userId) {
         log.info("Processing withdrawal request for account: {}", request.getAccountId());
 
+        // KYC Verification Guard
+        verifyKycApproved(userId);
+
         if (request.getIdempotencyKey() != null) {
             Optional<Transaction> existing = transactionRepository.findByIdempotencyKey(request.getIdempotencyKey());
             if (existing.isPresent()) {
@@ -85,6 +93,9 @@ public class TransactionService {
     public TransactionResponse transfer(TransferRequest request, UUID userId) {
         log.info("Processing transfer request from {} to {}", 
                 request.getFromAccountId(), request.getToAccountId());
+
+        // KYC Verification Guard
+        verifyKycApproved(userId);
 
         if (request.getIdempotencyKey() != null) {
             Optional<Transaction> existing = transactionRepository.findByIdempotencyKey(request.getIdempotencyKey());
@@ -171,6 +182,37 @@ public class TransactionService {
                 .stream()
                 .map(this::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Verifies that the user's KYC is approved before allowing transactions.
+     * @param userId The user ID to verify
+     * @throws KycNotApprovedException if KYC is not approved
+     */
+    private void verifyKycApproved(UUID userId) {
+        if (userId == null) {
+            log.warn("No user ID provided for KYC verification, skipping check");
+            return;
+        }
+        
+        CustomerServiceClient.KycStatusResponse kycStatus = customerServiceClient.getKycStatus(userId);
+        
+        if (!kycStatus.isApproved()) {
+            log.warn("Transaction blocked - KYC not approved for user: {}, status: {}", userId, kycStatus.kycStatus());
+            
+            String message;
+            if (kycStatus.isRejected()) {
+                message = "Your KYC verification was rejected. " + 
+                         (kycStatus.rejectionReason() != null ? "Reason: " + kycStatus.rejectionReason() : 
+                          "Please contact support for assistance.");
+            } else {
+                message = "Your account is pending KYC verification. Transactions will be enabled once admin approves your KYC.";
+            }
+            
+            throw new KycNotApprovedException(kycStatus.kycStatus(), message);
+        }
+        
+        log.debug("KYC verification passed for user: {}", userId);
     }
 
     private TransactionResponse toResponse(Transaction tx) {

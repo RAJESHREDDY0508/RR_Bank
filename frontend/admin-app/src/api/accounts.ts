@@ -1,62 +1,80 @@
 import apiClient from './client';
-import type { Account, PaginatedResponse } from '../types';
+import { PageResponse, ApiResponse, Account, AccountStatus } from '../types';
 
-export interface AccountSearchParams {
-  searchTerm?: string;
+export interface AccountTransaction {
+  id: string;
+  transactionReference: string;
+  transactionType: string;
+  status: string;
+  amount: number;
+  currency: string;
+  fromAccountId?: string;
+  toAccountId?: string;
+  description?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface AccountFilters {
+  type?: string;
   accountType?: string;
   status?: string;
+  search?: string;
   page?: number;
   size?: number;
 }
 
 export const accountsApi = {
-  // ✅ FIX: Use /admin/accounts path for admin operations
-  getAccounts: async (params: AccountSearchParams = {}): Promise<PaginatedResponse<Account>> => {
-    const response = await apiClient.get('/admin/accounts', { params });
-    return response.data;
+  getAccounts: async (filters: AccountFilters = {}): Promise<PageResponse<Account>> => {
+    const params = new URLSearchParams();
+    if (filters.type) params.append('type', filters.type);
+    if (filters.accountType) params.append('accountType', filters.accountType);
+    if (filters.status) params.append('status', filters.status);
+    if (filters.search) params.append('search', filters.search);
+    if (filters.page !== undefined) params.append('page', filters.page.toString());
+    if (filters.size !== undefined) params.append('size', filters.size.toString());
+
+    const response = await apiClient.get<ApiResponse<PageResponse<Account>>>(
+      `/admin/accounts?${params.toString()}`
+    );
+    return response.data.data;
   },
 
-  getAccount: async (accountId: string): Promise<Account> => {
-    const response = await apiClient.get(`/admin/accounts/${accountId}`);
-    return response.data;
+  getAccount: async (id: string): Promise<Account> => {
+    const response = await apiClient.get<ApiResponse<Account>>(`/admin/accounts/${id}`);
+    return response.data.data;
   },
 
-  freezeAccount: async (accountId: string, reason: string): Promise<void> => {
-    await apiClient.post(`/admin/accounts/${accountId}/freeze`, { reason });
-  },
-
-  unfreezeAccount: async (accountId: string): Promise<void> => {
-    await apiClient.post(`/admin/accounts/${accountId}/unfreeze`);
-  },
-
-  closeAccount: async (accountId: string, reason: string): Promise<void> => {
-    await apiClient.post(`/admin/accounts/${accountId}/close`, { reason });
+  updateAccountStatus: async (id: string, action: string, reason?: string): Promise<Account> => {
+    const response = await apiClient.put<ApiResponse<Account>>(
+      `/admin/accounts/${id}/status`,
+      { action, reason }
+    );
+    return response.data.data;
   },
 
   getAccountTransactions: async (
-    accountId: string,
-    page = 0,
-    size = 20
-  ): Promise<PaginatedResponse<any>> => {
-    const response = await apiClient.get(`/admin/accounts/${accountId}/transactions`, {
-      params: { page, size },
-    });
-    return response.data;
+    id: string,
+    page: number = 0,
+    size: number = 20
+  ): Promise<PageResponse<AccountTransaction>> => {
+    const response = await apiClient.get<ApiResponse<PageResponse<AccountTransaction>>>(
+      `/admin/accounts/${id}/transactions?page=${page}&size=${size}`
+    );
+    return response.data.data;
   },
 
-  adjustBalance: async (
-    accountId: string,
-    amount: number,
-    reason: string
-  ): Promise<void> => {
-    await apiClient.post(`/admin/accounts/${accountId}/adjust-balance`, {
-      amount,
-      reason,
-    });
+  freezeAccount: async (id: string, reason: string): Promise<Account> => {
+    return accountsApi.updateAccountStatus(id, 'FREEZE', reason);
   },
 
-  // Update account status
-  updateStatus: async (accountId: string, status: string, reason?: string): Promise<void> => {
-    await apiClient.patch(`/admin/accounts/${accountId}/status`, { status, reason });
+  unfreezeAccount: async (id: string, reason?: string): Promise<Account> => {
+    return accountsApi.updateAccountStatus(id, 'UNFREEZE', reason || 'Account unfrozen by admin');
+  },
+
+  closeAccount: async (id: string, reason: string): Promise<Account> => {
+    return accountsApi.updateAccountStatus(id, 'CLOSE', reason);
   },
 };
+
+export default accountsApi;

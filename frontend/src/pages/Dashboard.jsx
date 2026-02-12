@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Navbar';
+import KycBanner from '../components/KycBanner';
+import { useAuth } from '../context/AuthContext';
 import { accountService, transactionService } from '../services/bankService';
 import { 
   Wallet, 
@@ -16,6 +18,7 @@ import {
 import { format, startOfMonth, endOfMonth } from 'date-fns';
 
 const Dashboard = () => {
+  const { canTransact } = useAuth();
   const [accounts, setAccounts] = useState([]);
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [monthlyStats, setMonthlyStats] = useState({ income: 0, expenses: 0 });
@@ -183,6 +186,9 @@ const Dashboard = () => {
       <Navbar />
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* KYC Banner */}
+        <KycBanner />
+        
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -354,30 +360,36 @@ const Dashboard = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Link
               to="/transfer"
-              className="card hover:shadow-md transition-shadow cursor-pointer group"
+              className={`card transition-shadow group ${canTransact ? 'hover:shadow-md cursor-pointer' : 'opacity-60 cursor-not-allowed'}`}
+              onClick={e => !canTransact && e.preventDefault()}
             >
               <div className="flex items-center space-x-4">
-                <div className="bg-primary-100 p-3 rounded-lg group-hover:bg-primary-200 transition-colors">
-                  <ArrowUpRight className="h-6 w-6 text-primary-600" />
+                <div className={`p-3 rounded-lg transition-colors ${canTransact ? 'bg-primary-100 group-hover:bg-primary-200' : 'bg-gray-100'}`}>
+                  <ArrowUpRight className={`h-6 w-6 ${canTransact ? 'text-primary-600' : 'text-gray-400'}`} />
                 </div>
                 <div>
                   <p className="font-semibold text-gray-900">Transfer Money</p>
-                  <p className="text-sm text-gray-600">Send to another account</p>
+                  <p className="text-sm text-gray-600">
+                    {canTransact ? 'Send to another account' : 'KYC required'}
+                  </p>
                 </div>
               </div>
             </Link>
 
             <Link
               to="/transfer"
-              className="card hover:shadow-md transition-shadow cursor-pointer group"
+              className={`card transition-shadow group ${canTransact ? 'hover:shadow-md cursor-pointer' : 'opacity-60 cursor-not-allowed'}`}
+              onClick={e => !canTransact && e.preventDefault()}
             >
               <div className="flex items-center space-x-4">
-                <div className="bg-green-100 p-3 rounded-lg group-hover:bg-green-200 transition-colors">
-                  <ArrowDownLeft className="h-6 w-6 text-green-600" />
+                <div className={`p-3 rounded-lg transition-colors ${canTransact ? 'bg-green-100 group-hover:bg-green-200' : 'bg-gray-100'}`}>
+                  <ArrowDownLeft className={`h-6 w-6 ${canTransact ? 'text-green-600' : 'text-gray-400'}`} />
                 </div>
                 <div>
                   <p className="font-semibold text-gray-900">Deposit Funds</p>
-                  <p className="text-sm text-gray-600">Add money to account</p>
+                  <p className="text-sm text-gray-600">
+                    {canTransact ? 'Add money to account' : 'KYC required'}
+                  </p>
                 </div>
               </div>
             </Link>

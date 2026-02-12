@@ -1,0 +1,177 @@
+spring:
+  application:
+    name: admin-service
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/admin_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:Rajesh@2010}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+      password: ${SPRING_REDIS_PASSWORD:}
+      ssl:
+        enabled: ${SPRING_DATA_REDIS_SSL_ENABLED:false}
+
+server:
+  port: ${PORT:${SERVER_PORT:8089}}
+
+# JWT Configuration - MUST match API Gateway secret for token validation
+jwt:
+  secret: ${JWT_SECRET:rrbank-jwt-secret-key-minimum-32-characters-long}
+  access-token-expiration: ${JWT_ACCESS_EXPIRATION:3600000}
+  refresh-token-expiration: ${JWT_REFRESH_EXPIRATION:86400000}
+
+# Service URLs for inter-service communication
+services:
+  auth-url: ${SERVICES_AUTH_URL:http://localhost:8081}
+  customer-url: ${SERVICES_CUSTOMER_URL:http://localhost:8082}
+  account-url: ${SERVICES_ACCOUNT_URL:http://localhost:8083}
+  transaction-url: ${SERVICES_TRANSACTION_URL:http://localhost:8084}
+  ledger-url: ${SERVICES_LEDGER_URL:http://localhost:8085}
+  notification-url: ${SERVICES_NOTIFICATION_URL:http://localhost:8086}
+  fraud-url: ${SERVICES_FRAUD_URL:http://localhost:8087}
+  audit-url: ${SERVICES_AUDIT_URL:http://localhost:8088}
+
+# CORS Configuration
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:5173}
+
+# OpenAPI/Swagger
+springdoc:
+  api-docs:
+    path: /api-docs
+    enabled: true
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    tags-sorter: alpha
+    operations-sorter: alpha
+
+# Actuator
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+# Logging
+logging:
+  level:
+    com.rrbank: ${LOG_LEVEL:INFO}
+    org.springframework.security: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# Admin Configuration
+admin:
+  default-super-admin:
+    username: ${ADMIN_USERNAME:superadmin}
+    password: ${ADMIN_PASSWORD:Admin@123456}
+    email: ${ADMIN_EMAIL:admin@rrbank.com}
+  session:
+    max-sessions: 3
+    timeout-minutes: 60
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+  datasource:
+    url: jdbc:postgresql://postgres:5432/admin_db
+
+  data:
+    redis:
+      host: redis
+
+cors:
+  allowed-origins: http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:5173
+
+services:
+  auth-url: http://auth-service:8081
+  customer-url: http://customer-service:8082
+  account-url: http://account-service:8083
+  transaction-url: http://transaction-service:8084
+  ledger-url: http://ledger-service:8085
+  notification-url: http://notification-service:8086
+  fraud-url: http://fraud-service:8087
+  audit-url: http://audit-service:8088
+
+---
+spring:
+  config:
+    activate:
+      on-profile: oracle
+
+  datasource:
+    hikari:
+      maximum-pool-size: 15
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  data:
+    redis:
+      ssl:
+        enabled: true
+      timeout: 5000ms
+
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
+
+logging:
+  level:
+    com.rrbank: INFO
+    org.springframework.security: WARN
+
+springdoc:
+  swagger-ui:
+    enabled: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: production
+
+  jpa:
+    show-sql: false
+
+logging:
+  level:
+    com.rrbank: INFO
+    org.springframework.security: WARN
+
+springdoc:
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false

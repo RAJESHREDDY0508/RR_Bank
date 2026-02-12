@@ -6,7 +6,6 @@ interface AccountState {
   selectedAccount: Account | null;
   loading: boolean;
   error: string | null;
-  totalCount: number;
 }
 
 const initialState: AccountState = {
@@ -14,51 +13,44 @@ const initialState: AccountState = {
   selectedAccount: null,
   loading: false,
   error: null,
-  totalCount: 0,
 };
 
 const accountSlice = createSlice({
   name: 'accounts',
   initialState,
   reducers: {
-    setLoading: (state, action: PayloadAction<boolean>) => {
-      state.loading = action.payload;
-    },
-    setAccounts: (state, action: PayloadAction<{ accounts: Account[]; totalCount: number }>) => {
-      state.accounts = action.payload.accounts;
-      state.totalCount = action.payload.totalCount;
+    setAccounts: (state, action: PayloadAction<Account[]>) => {
+      state.accounts = action.payload;
       state.loading = false;
       state.error = null;
     },
     setSelectedAccount: (state, action: PayloadAction<Account | null>) => {
       state.selectedAccount = action.payload;
     },
-    updateAccountStatus: (state, action: PayloadAction<{ accountNumber: string; status: string }>) => {
-      const account = state.accounts.find(a => a.accountNumber === action.payload.accountNumber);
+    updateAccount: (state, action: PayloadAction<{ accountNumber: string; updates: Partial<Account> }>) => {
+      const account = state.accounts.find((a: Account) => a.accountNumber === action.payload.accountNumber);
       if (account) {
-        account.status = action.payload.status;
+        Object.assign(account, action.payload.updates);
       }
       if (state.selectedAccount?.accountNumber === action.payload.accountNumber) {
-        state.selectedAccount.status = action.payload.status;
+        Object.assign(state.selectedAccount, action.payload.updates);
       }
     },
-    setError: (state, action: PayloadAction<string>) => {
+    setLoading: (state, action: PayloadAction<boolean>) => {
+      state.loading = action.payload;
+    },
+    setError: (state, action: PayloadAction<string | null>) => {
       state.error = action.payload;
       state.loading = false;
     },
-    clearError: (state) => {
+    clearAccounts: (state) => {
+      state.accounts = [];
+      state.selectedAccount = null;
+      state.loading = false;
       state.error = null;
     },
   },
 });
 
-export const {
-  setLoading,
-  setAccounts,
-  setSelectedAccount,
-  updateAccountStatus,
-  setError,
-  clearError,
-} = accountSlice.actions;
-
+export const { setAccounts, setSelectedAccount, updateAccount, setLoading, setError, clearAccounts } = accountSlice.actions;
 export default accountSlice.reducer;

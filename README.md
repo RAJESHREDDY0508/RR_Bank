@@ -1,201 +1,170 @@
-# RR-Bank Microservices
+<p align="center">
+  <h1 align="center">RR-Bank</h1>
+  <p align="center">Enterprise Microservices Banking Platform</p>
+</p>
 
-A production-ready banking application with microservices architecture.
+<p align="center">
+  <a href="#architecture">Architecture</a> &middot;
+  <a href="#quick-start">Quick Start</a> &middot;
+  <a href="docs/api-reference.md">API Reference</a> &middot;
+  <a href="docs/deployment.md">Deployment</a> &middot;
+  <a href="CONTRIBUTING.md">Contributing</a>
+</p>
+
+---
+
+## Overview
+
+RR-Bank is a production-grade banking platform built on a distributed microservices architecture. It provides end-to-end banking operations including customer onboarding, account management, real-time transaction processing with SAGA orchestration, fraud detection, KYC compliance, and comprehensive audit logging.
+
+### Key Capabilities
+
+- **Distributed Transaction Processing** -- SAGA-based orchestration with compensation and idempotency
+- **Immutable Ledger** -- Append-only financial ledger as the single source of truth for all balances
+- **Real-Time Fraud Detection** -- Velocity checks, daily limits, and risk scoring engine
+- **KYC Compliance Workflow** -- End-to-end identity verification with admin approval pipeline
+- **Event-Driven Architecture** -- Kafka-powered async communication across service boundaries
+- **Role-Based Access Control** -- Granular RBAC for admin operations (Super Admin, Admin, Audit Officer, Fraud Analyst)
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                           FRONTEND (React)                          │
-│                              Port: 3000                             │
-└───────────────────────────────────┬─────────────────────────────────┘
+                         ┌──────────────────────┐
+                         │   Client Applications │
+                         │  Customer App (:3000) │
+                         │  Admin Console (:3001)│
+                         └──────────┬───────────┘
                                     │
-                                    ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                        API GATEWAY (8080)                           │
-│              JWT Validation │ Routing │ Rate Limiting               │
-└───────────────────────────────────┬─────────────────────────────────┘
+                         ┌──────────▼───────────┐
+                         │    API Gateway (:8080)│
+                         │  JWT · Routing · CORS │
+                         └──────────┬───────────┘
                                     │
-        ┌───────────────────────────┼───────────────────────────┐
-        │                           │                           │
-        ▼                           ▼                           ▼
-┌───────────────┐     ┌───────────────────┐     ┌───────────────────┐
-│ AUTH SERVICE  │     │ ACCOUNT SERVICE   │     │TRANSACTION SERVICE│
-│    (8081)     │     │     (8083)        │     │     (8084)        │
-│ Registration  │     │ Account CRUD      │     │  SAGA Orchestrator│
-│ Login/JWT     │     │ Balance (→Ledger) │     │ Deposit/Withdraw  │
-└───────────────┘     └───────────────────┘     │ Transfer          │
-                                                └─────────┬─────────┘
-                                                          │
-                      ┌─────────────────┬─────────────────┼─────────────────┐
-                      │                 │                 │                 │
-                      ▼                 ▼                 ▼                 ▼
-              ┌───────────────┐ ┌───────────────┐ ┌───────────────┐ ┌───────────────┐
-              │LEDGER SERVICE │ │ FRAUD SERVICE │ │NOTIFICATION   │ │CUSTOMER SERV  │
-              │   (8085)      │ │   (8087)      │ │   (8086)      │ │   (8082)      │
-              │ Source of     │ │ Daily Limits  │ │ Kafka Consumer│ │ Profile/KYC   │
-              │ Truth         │ │ Velocity Check│ │ Push/Email    │ └───────────────┘
-              │ Balance Calc  │ │ Risk Scoring  │ └───────────────┘
-              └───────────────┘ └───────────────┘
-                                              │
-                                              ▼
-                                    ┌───────────────────┐
-                                    │  AUDIT SERVICE    │
-                                    │     (8088)        │
-                                    │  Immutable Logs   │
-                                    └───────────────────┘
+          ┌────────────┬────────────┼────────────┬────────────┐
+          ▼            ▼            ▼            ▼            ▼
+   ┌────────────┐┌────────────┐┌────────────┐┌────────────┐┌────────────┐
+   │   Auth     ││  Customer  ││  Account   ││Transaction ││   Admin    │
+   │  (:8081)   ││  (:8082)   ││  (:8083)   ││  (:8084)   ││  (:8089)   │
+   └────────────┘└────────────┘└────────────┘└─────┬──────┘└────────────┘
+                                                   │
+                              ┌──────────┬─────────┼─────────┐
+                              ▼          ▼         ▼         ▼
+                       ┌────────────┐┌────────────┐┌────────────┐┌────────────┐
+                       │   Ledger   ││   Fraud    ││Notification││   Audit    │
+                       │  (:8085)   ││  (:8087)   ││  (:8086)   ││  (:8088)   │
+                       └────────────┘└────────────┘└────────────┘└────────────┘
 
-┌─────────────────────────────────────────────────────────────────────┐
-│                         INFRASTRUCTURE                               │
-├─────────────────┬─────────────────┬─────────────────────────────────┤
-│   PostgreSQL    │      Redis      │            Kafka                │
-│   (5432)        │     (6379)      │           (9092)                │
-│ 8 Databases     │   Caching       │    Event Streaming              │
-└─────────────────┴─────────────────┴─────────────────────────────────┘
+   ┌─────────────────────────────────────────────────────────────────────────┐
+   │                          Infrastructure                                 │
+   │   PostgreSQL (:5432)  ·  Redis (:6379)  ·  Apache Kafka (:9092)        │
+   └─────────────────────────────────────────────────────────────────────────┘
 ```
+
+> For detailed architecture documentation, see [docs/architecture.md](docs/architecture.md).
+
+## Technology Stack
+
+| Layer          | Technology                                             |
+|----------------|--------------------------------------------------------|
+| **Backend**    | Java 17, Spring Boot, Spring Cloud Gateway, Spring Kafka |
+| **Frontend**   | React 18, TypeScript, Material-UI, Redux Toolkit, Vite |
+| **Database**   | PostgreSQL 15 (per-service isolation)                  |
+| **Cache**      | Redis 7                                                |
+| **Messaging**  | Apache Kafka 7.4                                       |
+| **Containers** | Docker, Docker Compose                                 |
+| **Orchestration** | Kubernetes (OKE-ready)                              |
+
+## Quick Start
+
+### Prerequisites
+
+| Requirement     | Version |
+|-----------------|---------|
+| Docker Desktop  | 20.10+  |
+| Docker Compose  | 2.0+    |
+| Java (optional) | 17+     |
+| Node.js (optional) | 18+  |
+
+### Launch the Platform
+
+```bash
+# Clone the repository
+git clone <repository-url> && cd RR-Bank
+
+# Configure environment
+cp .env.example .env
+
+# Start all services
+docker-compose up -d
+
+# Verify health
+docker-compose ps
+```
+
+### Access Points
+
+| Application       | URL                        | Description                 |
+|-------------------|----------------------------|-----------------------------|
+| Customer Portal   | http://localhost:3000      | Customer-facing banking app |
+| Admin Console     | http://localhost:3001      | Administration dashboard    |
+| API Gateway       | http://localhost:8080      | Unified API entry point     |
+
+> For detailed setup instructions including local development, see [docs/getting-started.md](docs/getting-started.md).
 
 ## Project Structure
 
 ```
 RR-Bank/
-├── api-gateway/                 # Spring Cloud Gateway (8080)
+├── api-gateway/                # Spring Cloud Gateway
 ├── services/
-│   ├── auth-service/            # Authentication & JWT (8081)
-│   ├── customer-service/        # Customer profiles (8082)
-│   ├── account-service/         # Account management (8083)
-│   ├── transaction-service/     # SAGA orchestrator (8084)
-│   ├── ledger-service/          # Source of truth (8085)
-│   ├── notification-service/    # Notifications (8086)
-│   ├── fraud-service/           # Fraud detection (8087)
-│   └── audit-service/           # Audit logging (8088)
-├── frontend/                    # React application
-├── docker/                      # Docker configurations
-├── docker-compose.yml           # Full stack orchestration
-└── .env.example                 # Environment template
+│   ├── auth-service/           # Authentication & JWT management
+│   ├── customer-service/       # Customer profiles & KYC
+│   ├── account-service/        # Account lifecycle management
+│   ├── transaction-service/    # SAGA transaction orchestrator
+│   ├── ledger-service/         # Immutable financial ledger
+│   ├── notification-service/   # Event-driven notifications
+│   ├── fraud-service/          # Fraud detection engine
+│   ├── audit-service/          # Compliance audit logging
+│   └── admin-service/          # Admin operations & reporting
+├── frontend/
+│   ├── src/                    # Customer application (React)
+│   └── admin-app/              # Admin console (React + TypeScript)
+├── database/                   # Schema definitions & migrations
+├── kubernetes/                 # Kubernetes manifests
+├── scripts/                    # Build & deployment automation
+├── postman/                    # API test collections
+├── docs/                       # Project documentation
+├── docker-compose.yml          # Local orchestration
+└── docker-compose.oracle.yml   # Oracle Cloud deployment
 ```
 
-## Quick Start
+## Services
 
-### Prerequisites
-- Docker & Docker Compose
-- Java 17+ (for local development)
-- Node.js 18+ (for frontend development)
+| Service              | Port | Responsibility                                      |
+|----------------------|------|-----------------------------------------------------|
+| **API Gateway**      | 8080 | Request routing, JWT validation, rate limiting       |
+| **Auth Service**     | 8081 | User registration, login, JWT token management       |
+| **Customer Service** | 8082 | Customer profiles, KYC status management             |
+| **Account Service**  | 8083 | Account CRUD, balance queries (via Ledger)           |
+| **Transaction Service** | 8084 | SAGA orchestrator for deposits, withdrawals, transfers |
+| **Ledger Service**   | 8085 | Append-only ledger, authoritative balance calculation |
+| **Notification Service** | 8086 | Kafka-driven email and push notifications         |
+| **Fraud Service**    | 8087 | Transaction risk scoring, velocity & limit checks    |
+| **Audit Service**    | 8088 | Immutable audit trail for compliance                 |
+| **Admin Service**    | 8089 | Dashboard metrics, KYC management, system admin      |
 
-### Start with Docker
+## Documentation
 
-```bash
-# Navigate to project
-cd RR-Bank
-
-# Create .env file
-copy .env.example .env
-
-# Start all services
-docker-compose up -d
-
-# Check status
-docker-compose ps
-
-# View logs
-docker-compose logs -f
-```
-
-### Service URLs
-
-| Service | Port | URL |
-|---------|------|-----|
-| Frontend | 3000 | http://localhost:3000 |
-| API Gateway | 8080 | http://localhost:8080 |
-| Auth Service | 8081 | http://localhost:8081 |
-| Customer Service | 8082 | http://localhost:8082 |
-| Account Service | 8083 | http://localhost:8083 |
-| Transaction Service | 8084 | http://localhost:8084 |
-| Ledger Service | 8085 | http://localhost:8085 |
-| Notification Service | 8086 | http://localhost:8086 |
-| Fraud Service | 8087 | http://localhost:8087 |
-| Audit Service | 8088 | http://localhost:8088 |
-
-## API Examples
-
-### Register
-```bash
-curl -X POST http://localhost:8080/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "johndoe",
-    "email": "john@example.com",
-    "password": "Password123!",
-    "firstName": "John",
-    "lastName": "Doe"
-  }'
-```
-
-### Login
-```bash
-curl -X POST http://localhost:8080/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "usernameOrEmail": "john@example.com",
-    "password": "Password123!"
-  }'
-```
-
-### Create Account
-```bash
-curl -X POST http://localhost:8080/api/accounts \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "accountType": "SAVINGS"
-  }'
-```
-
-### Deposit
-```bash
-curl -X POST http://localhost:8080/api/transactions/deposit \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "accountId": "uuid-here",
-    "amount": 1000.00,
-    "description": "Initial deposit"
-  }'
-```
-
-### Transfer
-```bash
-curl -X POST http://localhost:8080/api/transactions/transfer \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "fromAccountId": "source-uuid",
-    "toAccountId": "dest-uuid",
-    "amount": 500.00
-  }'
-```
-
-## Key Features
-
-### Ledger Service (Source of Truth)
-- Append-only ledger entries
-- Balance calculated from entries (not stored)
-- Immutable transaction history
-
-### Transaction SAGA Orchestrator
-- Orchestration-based SAGA pattern
-- Compensation for failed transfers
-- Idempotency support
-
-### Fraud Service
-- Daily transaction limits ($10,000 default)
-- Velocity checks (5 withdrawals/hour)
-- Risk scoring
-
-### Event-Driven Architecture
-- Kafka for async communication
-- Events: user-created, transaction-completed, transaction-failed
-- Notification service subscribes to events
+| Document                                          | Description                              |
+|---------------------------------------------------|------------------------------------------|
+| [Architecture](docs/architecture.md)              | System design, patterns, data flow       |
+| [Getting Started](docs/getting-started.md)        | Setup, configuration, first run          |
+| [API Reference](docs/api-reference.md)            | Endpoint specifications and examples     |
+| [Development Guide](docs/development.md)          | Local development, testing, conventions  |
+| [Deployment Guide](docs/deployment.md)            | Docker, Kubernetes, Oracle Cloud         |
+| [Contributing](CONTRIBUTING.md)                   | Contribution guidelines and workflow     |
+| [Changelog](CHANGELOG.md)                         | Release history and version notes        |
 
 ## License
 
-MIT License
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.

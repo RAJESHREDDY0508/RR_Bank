@@ -1,78 +1,86 @@
 import apiClient from './client';
-import type { Customer, PaginatedResponse } from '../types';
+import { PageResponse, ApiResponse, Customer, CustomerStatus, KycStatus } from '../types';
 
-export interface CustomerSearchParams {
-  searchTerm?: string;
+export interface CustomerAccount {
+  id: string;
+  accountNumber: string;
+  accountType: string;
+  status: string;
+  currency: string;
+  balance: number;
+  availableBalance: number;
+  userId: string;
+  customerName: string;
+  createdAt: string;
+}
+
+export interface CustomerTransaction {
+  id: string;
+  transactionReference: string;
+  transactionType: string;
+  status: string;
+  amount: number;
+  currency: string;
+  description?: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface CustomerFilters {
   search?: string;
   status?: string;
   kycStatus?: string;
   page?: number;
   size?: number;
-  sort?: string;
+  sortBy?: string;
+  sortDir?: string;
 }
 
 export const customersApi = {
-  // Get all customers with pagination and search
-  getCustomers: async (params: CustomerSearchParams = {}): Promise<PaginatedResponse<Customer>> => {
-    const response = await apiClient.get('/admin/customers', { params });
-    return response.data;
+  getCustomers: async (filters: CustomerFilters = {}): Promise<PageResponse<Customer>> => {
+    const params = new URLSearchParams();
+    if (filters.search) params.append('search', filters.search);
+    if (filters.status) params.append('status', filters.status);
+    if (filters.page !== undefined) params.append('page', filters.page.toString());
+    if (filters.size !== undefined) params.append('size', filters.size.toString());
+    if (filters.sortBy) params.append('sortBy', filters.sortBy);
+    if (filters.sortDir) params.append('sortDir', filters.sortDir);
+
+    const response = await apiClient.get<ApiResponse<PageResponse<Customer>>>(
+      `/admin/customers?${params.toString()}`
+    );
+    return response.data.data;
   },
 
-  // Alias for getCustomers - used by Customers.tsx
-  getAll: async (params: CustomerSearchParams = {}) => {
-    const response = await apiClient.get('/admin/customers', { 
-      params: {
-        page: params.page || 0,
-        size: params.size || 20,
-        searchTerm: params.search || params.searchTerm,
-        status: params.status,
-        kycStatus: params.kycStatus
-      }
-    });
-    return response;
+  getCustomer: async (id: string): Promise<Customer> => {
+    const response = await apiClient.get<ApiResponse<Customer>>(`/admin/customers/${id}`);
+    return response.data.data;
   },
 
-  getCustomer: async (customerId: string): Promise<Customer> => {
-    const response = await apiClient.get(`/admin/customers/${customerId}`);
-    return response.data;
+  updateCustomerStatus: async (id: string, status: string, reason?: string): Promise<Customer> => {
+    const response = await apiClient.put<ApiResponse<Customer>>(
+      `/admin/customers/${id}/status`,
+      { status, reason }
+    );
+    return response.data.data;
   },
 
-  updateCustomerStatus: async (customerId: string, status: string): Promise<void> => {
-    await apiClient.patch(`/admin/customers/${customerId}/status`, { status });
+  getCustomerAccounts: async (id: string): Promise<CustomerAccount[]> => {
+    const response = await apiClient.get<ApiResponse<CustomerAccount[]>>(
+      `/admin/customers/${id}/accounts`
+    );
+    return response.data.data;
   },
 
-  updateKycStatus: async (customerId: string, kycStatus: string): Promise<void> => {
-    await apiClient.patch(`/admin/customers/${customerId}/kyc-status`, { kycStatus });
-  },
-
-  getCustomerAccounts: async (customerId: string): Promise<any[]> => {
-    const response = await apiClient.get(`/admin/customers/${customerId}/accounts`);
-    return response.data;
-  },
-
-  getCustomerTransactions: async (customerId: string, page = 0, size = 20): Promise<PaginatedResponse<any>> => {
-    const response = await apiClient.get(`/admin/customers/${customerId}/transactions`, {
-      params: { page, size },
-    });
-    return response.data;
-  },
-
-  suspendCustomer: async (customerId: string, reason: string): Promise<void> => {
-    await apiClient.post(`/admin/customers/${customerId}/suspend`, { reason });
-  },
-
-  reactivateCustomer: async (customerId: string): Promise<void> => {
-    await apiClient.post(`/admin/customers/${customerId}/reactivate`);
-  },
-
-  // Approve KYC verification
-  approveKyc: async (customerId: string, notes?: string): Promise<void> => {
-    await apiClient.post(`/admin/customers/${customerId}/kyc/approve`, { notes });
-  },
-
-  // Reject KYC verification
-  rejectKyc: async (customerId: string, reason: string): Promise<void> => {
-    await apiClient.post(`/admin/customers/${customerId}/kyc/reject`, { reason });
+  getCustomerTransactions: async (
+    id: string,
+    page: number = 0,
+    size: number = 20
+  ): Promise<PageResponse<CustomerTransaction>> => {
+    const response = await apiClient.get<ApiResponse<PageResponse<CustomerTransaction>>>(
+      `/admin/customers/${id}/transactions?page=${page}&size=${size}`
+    );
+    return response.data.data;
   },
 };
 

@@ -7,8 +7,6 @@ interface CustomerState {
   loading: boolean;
   error: string | null;
   totalCount: number;
-  currentPage: number;
-  pageSize: number;
 }
 
 const initialState: CustomerState = {
@@ -17,46 +15,46 @@ const initialState: CustomerState = {
   loading: false,
   error: null,
   totalCount: 0,
-  currentPage: 1,
-  pageSize: 10,
 };
 
 const customerSlice = createSlice({
   name: 'customers',
   initialState,
   reducers: {
-    setLoading: (state, action: PayloadAction<boolean>) => {
-      state.loading = action.payload;
-    },
-    setCustomers: (state, action: PayloadAction<{ customers: Customer[]; totalCount: number }>) => {
+    setCustomers: (state, action: PayloadAction<{ customers: Customer[]; total: number }>) => {
       state.customers = action.payload.customers;
-      state.totalCount = action.payload.totalCount;
+      state.totalCount = action.payload.total;
       state.loading = false;
       state.error = null;
     },
     setSelectedCustomer: (state, action: PayloadAction<Customer | null>) => {
       state.selectedCustomer = action.payload;
     },
-    setError: (state, action: PayloadAction<string>) => {
+    updateCustomer: (state, action: PayloadAction<{ id: string; updates: Partial<Customer> }>) => {
+      const customer = state.customers.find((c: Customer) => c.id === action.payload.id);
+      if (customer) {
+        Object.assign(customer, action.payload.updates);
+      }
+      if (state.selectedCustomer?.id === action.payload.id) {
+        Object.assign(state.selectedCustomer, action.payload.updates);
+      }
+    },
+    setLoading: (state, action: PayloadAction<boolean>) => {
+      state.loading = action.payload;
+    },
+    setError: (state, action: PayloadAction<string | null>) => {
       state.error = action.payload;
       state.loading = false;
     },
-    setPage: (state, action: PayloadAction<number>) => {
-      state.currentPage = action.payload;
-    },
-    clearError: (state) => {
+    clearCustomers: (state) => {
+      state.customers = [];
+      state.selectedCustomer = null;
+      state.loading = false;
       state.error = null;
+      state.totalCount = 0;
     },
   },
 });
 
-export const {
-  setLoading,
-  setCustomers,
-  setSelectedCustomer,
-  setError,
-  setPage,
-  clearError,
-} = customerSlice.actions;
-
+export const { setCustomers, setSelectedCustomer, updateCustomer, setLoading, setError, clearCustomers } = customerSlice.actions;
 export default customerSlice.reducer;

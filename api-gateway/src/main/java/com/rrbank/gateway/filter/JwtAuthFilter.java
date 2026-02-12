@@ -8,6 +8,7 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
@@ -29,16 +30,34 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             "/api/auth/login",
             "/api/auth/register",
             "/api/auth/refresh",
+            "/api/auth/forgot-password",
+            "/api/auth/reset-password",
+            "/api/auth/verify-email",
+            "/api/auth/resend-verification",
+            "/api/admin/auth/login",
+            "/api/admin/auth/refresh",
             "/actuator",
             "/swagger-ui",
-            "/v3/api-docs"
+            "/v3/api-docs",
+            "/api-docs"
     );
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getPath().toString();
+        HttpMethod method = exchange.getRequest().getMethod();
         
+        log.debug("Processing request: {} {}", method, path);
+        
+        // Allow CORS preflight requests
+        if (method == HttpMethod.OPTIONS) {
+            log.debug("Allowing OPTIONS preflight request for path: {}", path);
+            return chain.filter(exchange);
+        }
+        
+        // Check if path is open (public)
         if (isOpenPath(path)) {
+            log.debug("Open path accessed, bypassing JWT validation: {}", path);
             return chain.filter(exchange);
         }
 
@@ -46,8 +65,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             log.warn("Missing or invalid Authorization header for path: {}", path);
-            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete();
+            return handleUnauthorized(exchange, "Missing or invalid Authorization header");
         }
 
         String token = authHeader.substring(7);
@@ -55,23 +73,52 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         try {
             Claims claims = validateToken(token);
             
-            ServerHttpRequest mutatedRequest = exchange.getRequest().mutate()
-                    .header("X-User-Id", claims.getSubject())
-                    .header("X-User-Email", claims.get("email", String.class))
-                    .header("X-User-Role", claims.get("role", String.class))
-                    .build();
+            String userId = claims.getSubject();
+            String email = claims.get("email", String.class);
+            String role = claims.get("role", String.class);
             
-            return chain.filter(exchange.mutate().request(mutatedRequest).build());
+            ServerHttpRequest.Builder requestBuilder = exchange.getRequest().mutate();
             
+            if (userId != null) {
+                requestBuilder.header("X-User-Id", userId);
+            }
+            if (email != null) {
+                requestBuilder.header("X-User-Email", email);
+            }
+            if (role != null) {
+                requestBuilder.header("X-User-Role", role);
+            }
+            
+            return chain.filter(exchange.mutate().request(requestBuilder.build()).build());
+            
+        } catch (ExpiredJwtException e) {
+            log.warn("JWT token expired for path {}: {}", path, e.getMessage());
+            return handleUnauthorized(exchange, "Token expired");
         } catch (JwtException e) {
-            log.warn("JWT validation failed: {}", e.getMessage());
-            exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-            return exchange.getResponse().setComplete();
+            log.warn("JWT validation failed for path {}: {}", path, e.getMessage());
+            return handleUnauthorized(exchange, "Invalid token");
         }
     }
 
     private boolean isOpenPath(String path) {
-        return OPEN_PATHS.stream().anyMatch(path::startsWith);
+        // Normalize path by removing trailing slash
+        String normalizedPath = path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
+        
+        boolean isOpen = OPEN_PATHS.stream().anyMatch(openPath -> 
+            normalizedPath.equals(openPath) || normalizedPath.startsWith(openPath + "/") || normalizedPath.startsWith(openPath)
+        );
+        
+        if (isOpen) {
+            log.debug("Path '{}' matched as open path", path);
+        }
+        
+        return isOpen;
+    }
+    
+    private Mono<Void> handleUnauthorized(ServerWebExchange exchange, String message) {
+        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
+        exchange.getResponse().getHeaders().add("X-Auth-Error", message);
+        return exchange.getResponse().setComplete();
     }
 
     private Claims validateToken(String token) {

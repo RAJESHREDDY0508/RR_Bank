@@ -23,7 +23,8 @@ import {
   Alert,
   Card,
   CardContent,
-  Grid
+  Grid,
+  Skeleton
 } from '@mui/material';
 import {
   CheckCircle as ApproveIcon,
@@ -34,7 +35,6 @@ import {
   AccountBalance as AccountIcon
 } from '@mui/icons-material';
 import { accountRequestsApi, AccountRequest } from '../api/accountRequests';
-import { format } from 'date-fns';
 
 const AccountRequests: React.FC = () => {
   const [requests, setRequests] = useState<AccountRequest[]>([]);
@@ -61,11 +61,14 @@ const AccountRequests: React.FC = () => {
   const fetchRequests = async () => {
     try {
       setLoading(true);
+      setError(null);
       const data = await accountRequestsApi.getPendingRequests(page, rowsPerPage);
-      setRequests(data.content);
-      setTotalElements(data.totalElements);
+      setRequests(data?.content || []);
+      setTotalElements(data?.totalElements || 0);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load account requests');
+      console.error('Error fetching requests:', err);
+      setError('Failed to load account requests');
+      setRequests([]);
     } finally {
       setLoading(false);
     }
@@ -74,9 +77,10 @@ const AccountRequests: React.FC = () => {
   const fetchPendingCount = async () => {
     try {
       const data = await accountRequestsApi.getPendingCount();
-      setPendingCount(data.pendingCount);
+      setPendingCount(data?.pendingCount || data?.count || 0);
     } catch (err) {
       console.error('Failed to fetch pending count:', err);
+      setPendingCount(0);
     }
   };
 
@@ -116,7 +120,7 @@ const AccountRequests: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string): 'warning' | 'success' | 'error' | 'default' => {
     switch (status) {
       case 'PENDING': return 'warning';
       case 'APPROVED': return 'success';
@@ -126,11 +130,26 @@ const AccountRequests: React.FC = () => {
     }
   };
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | undefined) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD'
     }).format(amount || 0);
+  };
+
+  const formatDate = (dateString: string | undefined) => {
+    if (!dateString) return '-';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch {
+      return dateString;
+    }
   };
 
   return (
@@ -149,6 +168,7 @@ const AccountRequests: React.FC = () => {
           variant="outlined"
           startIcon={<RefreshIcon />}
           onClick={() => { fetchRequests(); fetchPendingCount(); }}
+          disabled={loading}
         >
           Refresh
         </Button>
@@ -186,52 +206,59 @@ const AccountRequests: React.FC = () => {
             <TableHead>
               <TableRow>
                 <TableCell>Date</TableCell>
-                <TableCell>User ID</TableCell>
+                <TableCell>Request #</TableCell>
+                <TableCell>Customer</TableCell>
                 <TableCell>Account Type</TableCell>
-                <TableCell>Initial Deposit</TableCell>
-                <TableCell>Currency</TableCell>
                 <TableCell>Status</TableCell>
                 <TableCell align="right">Actions</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {loading ? (
-                <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 5 }}>
-                    <CircularProgress />
-                  </TableCell>
-                </TableRow>
+                [...Array(5)].map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell><Skeleton /></TableCell>
+                    <TableCell><Skeleton /></TableCell>
+                    <TableCell><Skeleton /></TableCell>
+                    <TableCell><Skeleton width={80} /></TableCell>
+                    <TableCell><Skeleton width={80} /></TableCell>
+                    <TableCell><Skeleton width={100} /></TableCell>
+                  </TableRow>
+                ))
               ) : requests.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 5 }}>
-                    <Typography color="text.secondary">No pending requests</Typography>
+                  <TableCell colSpan={6} align="center" sx={{ py: 5 }}>
+                    <PendingIcon sx={{ fontSize: 60, color: 'text.disabled', mb: 2 }} />
+                    <Typography color="text.secondary">No account requests found</Typography>
                   </TableCell>
                 </TableRow>
               ) : (
                 requests.map((request) => (
                   <TableRow key={request.id} hover>
-                    <TableCell>
-                      {format(new Date(request.createdAt), 'MMM dd, yyyy HH:mm')}
-                    </TableCell>
+                    <TableCell>{formatDate(request.createdAt)}</TableCell>
                     <TableCell>
                       <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                        {request.userId.substring(0, 8)}...
+                        {request.requestNumber || request.id?.substring(0, 8) || 'N/A'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">{request.customerName || 'N/A'}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {request.customerEmail || ''}
                       </Typography>
                     </TableCell>
                     <TableCell>
                       <Chip 
                         icon={<AccountIcon />} 
-                        label={request.accountType} 
+                        label={request.accountType || 'N/A'} 
                         size="small" 
                         variant="outlined"
                       />
                     </TableCell>
-                    <TableCell>{formatCurrency(request.initialDeposit)}</TableCell>
-                    <TableCell>{request.currency}</TableCell>
                     <TableCell>
                       <Chip 
-                        label={request.status} 
-                        color={getStatusColor(request.status) as any}
+                        label={request.status || 'UNKNOWN'} 
+                        color={getStatusColor(request.status)}
                         size="small"
                       />
                     </TableCell>
@@ -239,38 +266,44 @@ const AccountRequests: React.FC = () => {
                       {request.status === 'PENDING' && (
                         <>
                           <Tooltip title="Approve">
-                            <IconButton
-                              color="success"
-                              onClick={() => {
-                                setSelectedRequest(request);
-                                setApproveDialogOpen(true);
-                              }}
-                            >
-                              <ApproveIcon />
-                            </IconButton>
+                            <span>
+                              <IconButton
+                                color="success"
+                                onClick={() => {
+                                  setSelectedRequest(request);
+                                  setApproveDialogOpen(true);
+                                }}
+                              >
+                                <ApproveIcon />
+                              </IconButton>
+                            </span>
                           </Tooltip>
                           <Tooltip title="Reject">
-                            <IconButton
-                              color="error"
-                              onClick={() => {
-                                setSelectedRequest(request);
-                                setRejectDialogOpen(true);
-                              }}
-                            >
-                              <RejectIcon />
-                            </IconButton>
+                            <span>
+                              <IconButton
+                                color="error"
+                                onClick={() => {
+                                  setSelectedRequest(request);
+                                  setRejectDialogOpen(true);
+                                }}
+                              >
+                                <RejectIcon />
+                              </IconButton>
+                            </span>
                           </Tooltip>
                         </>
                       )}
                       <Tooltip title="View Details">
-                        <IconButton
-                          onClick={() => {
-                            setSelectedRequest(request);
-                            setViewDialogOpen(true);
-                          }}
-                        >
-                          <ViewIcon />
-                        </IconButton>
+                        <span>
+                          <IconButton
+                            onClick={() => {
+                              setSelectedRequest(request);
+                              setViewDialogOpen(true);
+                            }}
+                          >
+                            <ViewIcon />
+                          </IconButton>
+                        </span>
                       </Tooltip>
                     </TableCell>
                   </TableRow>
@@ -298,10 +331,7 @@ const AccountRequests: React.FC = () => {
         <DialogTitle>Approve Account Request</DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 2 }}>
-            Are you sure you want to approve this {selectedRequest?.accountType} account request?
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Initial deposit: {formatCurrency(selectedRequest?.initialDeposit || 0)}
+            Are you sure you want to approve this {selectedRequest?.accountType} account request for {selectedRequest?.customerName || 'this customer'}?
           </Typography>
           <TextField
             fullWidth
@@ -368,57 +398,50 @@ const AccountRequests: React.FC = () => {
             <Box sx={{ pt: 1 }}>
               <Grid container spacing={2}>
                 <Grid item xs={6}>
-                  <Typography variant="caption" color="text.secondary">Request ID</Typography>
+                  <Typography variant="caption" color="text.secondary">Request #</Typography>
                   <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                    {selectedRequest.id}
+                    {selectedRequest.requestNumber || selectedRequest.id}
                   </Typography>
                 </Grid>
                 <Grid item xs={6}>
-                  <Typography variant="caption" color="text.secondary">User ID</Typography>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-                    {selectedRequest.userId}
-                  </Typography>
+                  <Typography variant="caption" color="text.secondary">Status</Typography>
+                  <Box>
+                    <Chip label={selectedRequest.status} color={getStatusColor(selectedRequest.status)} size="small" />
+                  </Box>
+                </Grid>
+                <Grid item xs={12}>
+                  <Typography variant="caption" color="text.secondary">Customer</Typography>
+                  <Typography variant="body2">{selectedRequest.customerName || 'N/A'}</Typography>
+                  <Typography variant="caption" color="text.secondary">{selectedRequest.customerEmail}</Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="caption" color="text.secondary">Account Type</Typography>
                   <Typography variant="body2">{selectedRequest.accountType}</Typography>
                 </Grid>
                 <Grid item xs={6}>
-                  <Typography variant="caption" color="text.secondary">Initial Deposit</Typography>
-                  <Typography variant="body2">{formatCurrency(selectedRequest.initialDeposit)}</Typography>
+                  <Typography variant="caption" color="text.secondary">ID Type</Typography>
+                  <Typography variant="body2">{selectedRequest.idType || 'N/A'}</Typography>
                 </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="caption" color="text.secondary">Currency</Typography>
-                  <Typography variant="body2">{selectedRequest.currency}</Typography>
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="caption" color="text.secondary">Status</Typography>
-                  <Chip label={selectedRequest.status} color={getStatusColor(selectedRequest.status) as any} size="small" />
+                <Grid item xs={12}>
+                  <Typography variant="caption" color="text.secondary">Address</Typography>
+                  <Typography variant="body2">{selectedRequest.address || 'N/A'}</Typography>
                 </Grid>
                 <Grid item xs={12}>
                   <Typography variant="caption" color="text.secondary">Created At</Typography>
-                  <Typography variant="body2">
-                    {format(new Date(selectedRequest.createdAt), 'MMMM dd, yyyy HH:mm:ss')}
-                  </Typography>
+                  <Typography variant="body2">{formatDate(selectedRequest.createdAt)}</Typography>
                 </Grid>
-                {selectedRequest.requestNotes && (
-                  <Grid item xs={12}>
-                    <Typography variant="caption" color="text.secondary">User Notes</Typography>
-                    <Typography variant="body2">{selectedRequest.requestNotes}</Typography>
-                  </Grid>
-                )}
-                {selectedRequest.adminNotes && (
-                  <Grid item xs={12}>
-                    <Typography variant="caption" color="text.secondary">Admin Notes</Typography>
-                    <Typography variant="body2">{selectedRequest.adminNotes}</Typography>
-                  </Grid>
-                )}
                 {selectedRequest.reviewedBy && (
                   <Grid item xs={12}>
                     <Typography variant="caption" color="text.secondary">Reviewed By</Typography>
                     <Typography variant="body2">
-                      {selectedRequest.reviewedBy} on {format(new Date(selectedRequest.reviewedAt!), 'MMM dd, yyyy HH:mm')}
+                      {selectedRequest.reviewedBy} on {formatDate(selectedRequest.reviewedAt || undefined)}
                     </Typography>
+                  </Grid>
+                )}
+                {selectedRequest.rejectionReason && (
+                  <Grid item xs={12}>
+                    <Typography variant="caption" color="text.secondary">Rejection Reason</Typography>
+                    <Typography variant="body2" color="error">{selectedRequest.rejectionReason}</Typography>
                   </Grid>
                 )}
               </Grid>

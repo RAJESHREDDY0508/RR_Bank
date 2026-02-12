@@ -38,6 +38,7 @@ public class AccountDTOs {
         private BigDecimal availableBalance;
         private BigDecimal overdraftLimit;
         private LocalDateTime createdAt;
+        private LocalDateTime updatedAt;
     }
 
     @Data

@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin-service
+  namespace: rrbank
+  labels:
+    app: admin-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: admin-service
+  template:
+    metadata:
+      labels:
+        app: admin-service
+    spec:
+      containers:
+        - name: admin-service
+          image: ${OCI_REGION}.ocir.io/${OCI_NAMESPACE}/rrbank/admin-service:latest
+          ports:
+            - containerPort: 8089
+          envFrom:
+            - configMapRef:
+                name: rrbank-config
+          env:
+            - name: SERVER_PORT
+              value: "8089"
+            - name: SPRING_DATASOURCE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rrbank-secrets
+                  key: DATABASE_URL
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: rrbank-secrets
+                  key: DATABASE_USERNAME
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rrbank-secrets
+                  key: DATABASE_PASSWORD
+            - name: SPRING_REDIS_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: rrbank-secrets
+                  key: REDIS_HOST
+            - name: SPRING_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rrbank-secrets
+                  key: REDIS_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: rrbank-secrets
+                  key: JWT_SECRET
+            - name: ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: rrbank-secrets
+                  key: ADMIN_USERNAME
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rrbank-secrets
+                  key: ADMIN_PASSWORD
+            - name: ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: rrbank-secrets
+                  key: ADMIN_EMAIL
+            - name: SERVICES_AUTH_URL
+              value: "http://auth-service:8081"
+            - name: SERVICES_CUSTOMER_URL
+              value: "http://customer-service:8082"
+            - name: SERVICES_ACCOUNT_URL
+              value: "http://account-service:8083"
+            - name: SERVICES_TRANSACTION_URL
+              value: "http://transaction-service:8084"
+            - name: SERVICES_LEDGER_URL
+              value: "http://ledger-service:8085"
+            - name: SERVICES_NOTIFICATION_URL
+              value: "http://notification-service:8086"
+            - name: SERVICES_FRAUD_URL
+              value: "http://fraud-service:8087"
+            - name: SERVICES_AUDIT_URL
+              value: "http://audit-service:8088"
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8089
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8089
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin-service
+  namespace: rrbank
+  labels:
+    app: admin-service
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8089
+      targetPort: 8089
+      protocol: TCP
+  selector:
+    app: admin-service

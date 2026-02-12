@@ -57,8 +57,8 @@ public class EmailService {
 
     @Async
     public void sendTransactionEmail(String toEmail, String firstName, String transactionType,
-                                     BigDecimal amount, String accountNumber, String description,
-                                     BigDecimal newBalance, String transactionRef) {
+                                    BigDecimal amount, String accountNumber, String description,
+                                    BigDecimal newBalance, String transactionRef) {
         try {
             Context context = new Context();
             context.setVariable("firstName", firstName);

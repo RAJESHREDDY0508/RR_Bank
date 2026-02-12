@@ -13,6 +13,12 @@ import java.util.UUID;
 @AllArgsConstructor
 @Builder
 public class Customer {
+
+    public enum KycStatus {
+        PENDING,
+        APPROVED,
+        REJECTED
+    }
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
@@ -49,6 +55,14 @@ public class Customer {
 
     @Column(name = "kyc_verified_at")
     private LocalDateTime kycVerifiedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "kyc_status")
+    @Builder.Default
+    private KycStatus kycStatus = KycStatus.PENDING;
+
+    @Column(name = "kyc_rejection_reason")
+    private String kycRejectionReason;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;

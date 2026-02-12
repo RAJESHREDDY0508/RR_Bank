@@ -47,6 +47,8 @@ spec:
               value: "http://fraud-service:8087"
             - name: AUDIT_SERVICE_URL
               value: "http://audit-service:8088"
+            - name: ADMIN_SERVICE_URL
+              value: "http://admin-service:8089"
           resources:
             requests:
               memory: "512Mi"
@@ -88,6 +90,8 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: "nginx"
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
 spec:
   rules:
     - host: api.rrbank.example.com

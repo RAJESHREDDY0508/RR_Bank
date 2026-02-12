@@ -16,7 +16,7 @@ echo "Registry: $REGISTRY"
 echo "Tag: $TAG"
 echo "============================================================"
 
-# Services to build
+# Services to build (path:name format)
 SERVICES=(
     "api-gateway"
     "services/auth-service:auth-service"
@@ -27,7 +27,9 @@ SERVICES=(
     "services/fraud-service:fraud-service"
     "services/notification-service:notification-service"
     "services/audit-service:audit-service"
+    "services/admin-service:admin-service"
     "frontend"
+    "frontend/admin-app:admin-frontend"
 )
 
 # Build each service
@@ -51,6 +53,13 @@ echo ""
 echo "============================================================"
 echo "All images built successfully!"
 echo "============================================================"
+echo ""
+echo "Images created:"
+for SERVICE in "${SERVICES[@]}"; do
+    IFS=':' read -r PATH NAME <<< "$SERVICE"
+    NAME=${NAME:-$(basename $PATH)}
+    echo "  - $REGISTRY/rrbank/$NAME:$TAG"
+done
 echo ""
 echo "To push images to OCIR, run:"
 echo "  ./scripts/push-to-ocir.sh"

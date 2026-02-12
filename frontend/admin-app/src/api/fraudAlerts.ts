@@ -1,60 +1,103 @@
 import apiClient from './client';
-import type { FraudAlert, PaginatedResponse } from '../types';
+import { PageResponse, ApiResponse, FraudAlertStatus, FraudAlert } from '../types';
 
-export interface FraudAlertSearchParams {
+export interface TransactionLimit {
+  id: string;
+  userId: string;
+  customerName: string;
+  limitType: string;
+  dailyLimit: number;
+  perTransactionLimit: number;
+  monthlyLimit: number;
+  usedToday: number;
+  usedThisMonth: number;
+  remainingDaily: number;
+  remainingMonthly: number;
+  updatedAt: string;
+}
+
+export interface FraudStats {
+  totalAlerts: number;
+  pendingAlerts: number;
+  confirmedFraud: number;
+  falsePositives: number;
+  alertsThisWeek: number;
+  averageResolutionTime: string;
+}
+
+export interface FraudAlertFilters {
+  search?: string;
   status?: string;
-  severity?: string;
-  alertType?: string;
-  startDate?: string;
-  endDate?: string;
+  eventType?: string;
   page?: number;
   size?: number;
 }
 
+export interface ResolveAlertRequest {
+  status: FraudAlertStatus;
+  notes: string;
+}
+
 export const fraudAlertsApi = {
-  // ✅ FIX: Use /admin/fraud path for admin operations
-  getFraudAlerts: async (params: FraudAlertSearchParams = {}): Promise<PaginatedResponse<FraudAlert>> => {
-    const response = await apiClient.get('/admin/fraud/queue', { params });
-    return response.data;
+  getAlerts: async (filters: FraudAlertFilters = {}): Promise<PageResponse<FraudAlert>> => {
+    const params = new URLSearchParams();
+    if (filters.search) params.append('search', filters.search);
+    if (filters.status) params.append('status', filters.status);
+    if (filters.eventType) params.append('eventType', filters.eventType);
+    if (filters.page !== undefined) params.append('page', filters.page.toString());
+    if (filters.size !== undefined) params.append('size', filters.size.toString());
+
+    const response = await apiClient.get<ApiResponse<PageResponse<FraudAlert>>>(
+      `/admin/fraud/alerts?${params.toString()}`
+    );
+    return response.data.data;
   },
 
-  getFraudAlert: async (alertId: string): Promise<FraudAlert> => {
-    const response = await apiClient.get(`/admin/fraud/${alertId}`);
-    return response.data;
+  getAlert: async (id: string): Promise<FraudAlert> => {
+    const response = await apiClient.get<ApiResponse<FraudAlert>>(`/admin/fraud/alerts/${id}`);
+    return response.data.data;
   },
 
-  updateAlertStatus: async (alertId: string, status: string, notes?: string): Promise<void> => {
-    await apiClient.patch(`/admin/fraud/${alertId}/status`, { status, notes });
+  resolveAlert: async (id: string, data: ResolveAlertRequest): Promise<FraudAlert> => {
+    const response = await apiClient.put<ApiResponse<FraudAlert>>(
+      `/admin/fraud/alerts/${id}/resolve`,
+      { resolution: data.status, notes: data.notes }
+    );
+    return response.data.data;
   },
 
-  assignAlert: async (alertId: string, assignedTo: string): Promise<void> => {
-    await apiClient.post(`/admin/fraud/${alertId}/assign`, { assignedTo });
+  getStats: async (): Promise<FraudStats> => {
+    const response = await apiClient.get<ApiResponse<FraudStats>>('/admin/fraud/stats');
+    return response.data.data;
   },
 
-  resolveAlert: async (alertId: string, resolution: string, notes: string): Promise<void> => {
-    await apiClient.post(`/admin/fraud/${alertId}/resolve`, {
-      resolution,
-      notes,
-    });
+  getLimits: async (page: number = 0, size: number = 20): Promise<PageResponse<TransactionLimit>> => {
+    const response = await apiClient.get<ApiResponse<PageResponse<TransactionLimit>>>(
+      `/admin/fraud/limits?page=${page}&size=${size}`
+    );
+    return response.data.data;
   },
 
-  escalateAlert: async (alertId: string, notes: string): Promise<void> => {
-    await apiClient.post(`/admin/fraud/${alertId}/escalate`, { notes });
+  getUserLimits: async (userId: string): Promise<TransactionLimit[]> => {
+    const response = await apiClient.get<ApiResponse<TransactionLimit[]>>(
+      `/admin/fraud/limits/${userId}`
+    );
+    return response.data.data;
   },
 
-  // Approve fraud event (mark as false positive)
-  approveEvent: async (eventId: string, notes?: string): Promise<void> => {
-    await apiClient.post(`/admin/fraud/${eventId}/approve`, { notes });
-  },
-
-  // Reject fraud event (confirm as fraud)
-  rejectEvent: async (eventId: string, notes: string): Promise<void> => {
-    await apiClient.post(`/admin/fraud/${eventId}/reject`, { notes });
-  },
-
-  // Get fraud statistics
-  getStats: async (): Promise<any> => {
-    const response = await apiClient.get('/admin/fraud/stats');
-    return response.data;
+  updateUserLimits: async (
+    userId: string,
+    dailyLimit: number,
+    perTransactionLimit: number,
+    monthlyLimit: number,
+    reason?: string
+  ): Promise<TransactionLimit> => {
+    const response = await apiClient.put<ApiResponse<TransactionLimit>>(
+      `/admin/fraud/limits/${userId}`,
+      { dailyLimit, perTransactionLimit, monthlyLimit, reason }
+    );
+    return response.data.data;
   },
 };
+
+export default fraudAlertsApi;

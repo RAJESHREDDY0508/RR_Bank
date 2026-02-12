@@ -1,27 +1,36 @@
+/* Base styles */
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+html {
+  font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f5f5f5;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  background-color: #f5f5f5;
+  min-height: 100vh;
 }
 
 #root {
   min-height: 100vh;
 }
 
-/* Custom scrollbar */
+/* Responsive typography */
+@media (max-width: 600px) {
+  html {
+    font-size: 14px;
+  }
+}
+
+/* Scrollbar styles */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -29,27 +38,199 @@ code {
 
 ::-webkit-scrollbar-track {
   background: #f1f1f1;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #888;
+  background: #c1c1c1;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: #a1a1a1;
 }
 
-/* Loading animation */
-@keyframes spin {
+/* Hide scrollbar on mobile for certain elements */
+@media (max-width: 768px) {
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Table responsive styles */
+@media (max-width: 768px) {
+  .MuiTable-root {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
+
+/* Card responsive padding */
+@media (max-width: 600px) {
+  .MuiCard-root .MuiCardContent-root {
+    padding: 12px !important;
+  }
+}
+
+/* Dialog responsive */
+@media (max-width: 600px) {
+  .MuiDialog-paper {
+    margin: 16px !important;
+    width: calc(100% - 32px) !important;
+    max-height: calc(100% - 32px) !important;
+  }
+}
+
+/* Button group responsive */
+@media (max-width: 600px) {
+  .button-group-responsive {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .button-group-responsive > button {
+    width: 100%;
+  }
+}
+
+/* Chip responsive */
+@media (max-width: 600px) {
+  .MuiChip-root {
+    height: 24px;
+    font-size: 0.75rem;
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  .MuiDrawer-root {
+    display: none !important;
+  }
+  
+  .MuiAppBar-root {
+    display: none !important;
+  }
+  
+  main {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+
+/* Animation utilities */
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
   from {
-    transform: rotate(0deg);
+    opacity: 0;
   }
   to {
-    transform: rotate(360deg);
+    opacity: 1;
   }
 }
 
-.spinning {
-  animation: spin 1s linear infinite;
+.slide-up {
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Focus visible styles for accessibility */
+:focus-visible {
+  outline: 2px solid #1976d2;
+  outline-offset: 2px;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Toast customizations */
+.Toastify__toast-container {
+  z-index: 9999;
+}
+
+@media (max-width: 480px) {
+  .Toastify__toast-container {
+    width: 100vw;
+    padding: 0;
+    left: 0;
+    margin: 0;
+  }
+  
+  .Toastify__toast {
+    border-radius: 0;
+    margin-bottom: 0;
+  }
+}
+
+/* Mobile bottom navigation space */
+@media (max-width: 900px) {
+  .content-with-bottom-nav {
+    padding-bottom: 72px !important;
+  }
+}
+
+/* Empty state styles */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.empty-state-icon {
+  font-size: 64px;
+  color: #9e9e9e;
+  margin-bottom: 16px;
+}
+
+/* Loading overlay */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9998;
+}
+
+/* Safe area insets for notched devices */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }

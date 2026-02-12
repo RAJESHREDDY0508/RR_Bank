@@ -4,8 +4,8 @@ spring:
   
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/auth_db}
-    username: ${SPRING_DATASOURCE_USERNAME:rrbank}
-    password: ${SPRING_DATASOURCE_PASSWORD:rrbank_secret}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:Rajesh@2010}
     driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
@@ -49,6 +49,7 @@ jwt:
 
 services:
   notification-url: ${SERVICES_NOTIFICATION_URL:http://localhost:8086}
+  customer-url: ${SERVICES_CUSTOMER_URL:http://localhost:8082}
 
 management:
   endpoints:
@@ -88,6 +89,7 @@ spring:
 
 services:
   notification-url: http://notification-service:8086
+  customer-url: http://customer-service:8082
 
 ---
 spring:

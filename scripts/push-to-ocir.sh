@@ -47,7 +47,9 @@ IMAGES=(
     "fraud-service"
     "notification-service"
     "audit-service"
+    "admin-service"
     "frontend"
+    "admin-frontend"
 )
 
 # Push each image
@@ -69,3 +71,7 @@ echo "Images are available at:"
 for IMAGE in "${IMAGES[@]}"; do
     echo "  $REGISTRY/rrbank/$IMAGE:$TAG"
 done
+echo ""
+echo "Next steps:"
+echo "  1. Update kubernetes manifests with your OCI_REGION and OCI_NAMESPACE"
+echo "  2. Deploy to OKE: ./scripts/deploy-to-oke.sh"

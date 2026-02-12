@@ -1,7 +1,7 @@
 @echo off
 echo ====================================
 echo   RR-BANK FRONTEND APPLICATIONS
-echo   Phase 5: Starting Both Apps
+echo   Starting Customer & Admin Apps
 echo ====================================
 echo.
 
@@ -23,7 +23,8 @@ echo.
 echo ====================================
 echo   Step 1: Customer App Setup
 echo ====================================
-cd "%~dp0customer-app"
+REM Customer app is in the main frontend folder
+cd "%~dp0"
 
 if not exist "node_modules\" (
     echo Installing Customer App dependencies...
@@ -70,8 +71,8 @@ echo.
 echo Press Ctrl+C in each window to stop the apps
 echo.
 
-REM Start Customer App in new terminal
-start "RR-Bank Customer App" cmd /k "cd /d %~dp0customer-app && npm run dev"
+REM Start Customer App in new terminal (main frontend folder)
+start "RR-Bank Customer App" cmd /k "cd /d %~dp0 && npm run dev"
 
 REM Wait a moment before starting the second app
 timeout /t 3 /nobreak >nul

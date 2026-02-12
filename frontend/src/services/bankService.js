@@ -441,6 +441,17 @@ export const customerService = {
   getCustomerByUserId: async (userId) => {
     const response = await api.get(`/customers/user/${userId}`);
     return response.data;
+  },
+
+  // KYC Status methods
+  getKycStatus: async (userId) => {
+    const response = await api.get(`/customers/user/${userId}/kyc-status`);
+    return response.data;
+  },
+
+  getMyCustomerProfile: async () => {
+    const response = await api.get('/customers/me');
+    return response.data;
   }
 };
 

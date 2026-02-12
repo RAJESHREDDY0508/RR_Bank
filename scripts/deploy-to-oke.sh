@@ -60,17 +60,26 @@ echo "   Waiting for core services to be ready..."
 kubectl wait --for=condition=available --timeout=120s deployment/auth-service -n $NAMESPACE || true
 kubectl wait --for=condition=available --timeout=120s deployment/ledger-service -n $NAMESPACE || true
 
-# 3. Other services
-echo "3. Deploying other services..."
+# 3. Other backend services
+echo "3. Deploying other backend services..."
 for FILE in $TEMP_DIR/0[3-8]-*.yaml; do
     if [ -f "$FILE" ]; then
         kubectl apply -f $FILE
     fi
 done
 
-# 4. API Gateway
-echo "4. Deploying API Gateway..."
+# 4. Admin Service
+echo "4. Deploying Admin Service..."
+kubectl apply -f $TEMP_DIR/10-admin-service.yaml
+
+# 5. API Gateway
+echo "5. Deploying API Gateway..."
 kubectl apply -f $TEMP_DIR/09-api-gateway.yaml
+
+# 6. Frontends
+echo "6. Deploying Frontends..."
+kubectl apply -f $TEMP_DIR/11-customer-frontend.yaml
+kubectl apply -f $TEMP_DIR/12-admin-frontend.yaml
 
 # Cleanup temp directory
 rm -rf $TEMP_DIR
@@ -94,9 +103,15 @@ kubectl get services -n $NAMESPACE
 # Get LoadBalancer IP
 echo ""
 echo "============================================================"
-echo "API Gateway External IP"
+echo "External Access Points"
 echo "============================================================"
-kubectl get service api-gateway -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+echo "API Gateway:"
+kubectl get service api-gateway -n $NAMESPACE -o jsonpath='  IP: {.status.loadBalancer.ingress[0].ip}'
+echo ""
+
+echo ""
+echo "Ingress URLs:"
+kubectl get ingress -n $NAMESPACE
 echo ""
 
 echo ""
@@ -104,7 +119,17 @@ echo "============================================================"
 echo "Deployment Complete!"
 echo "============================================================"
 echo ""
+echo "Services deployed:"
+echo "  - 9 Backend Microservices"
+echo "  - 1 API Gateway"
+echo "  - 2 Frontend Applications (Customer + Admin)"
+echo ""
 echo "Next steps:"
-echo "1. Update your DNS to point to the API Gateway IP"
-echo "2. Update CORS_ALLOWED_ORIGINS with your frontend URL"
-echo "3. Deploy your frontend to OCI Object Storage"
+echo "1. Update DNS records:"
+echo "   - api.rrbank.example.com → API Gateway IP"
+echo "   - rrbank.example.com → Customer Frontend Ingress"
+echo "   - admin.rrbank.example.com → Admin Frontend Ingress"
+echo ""
+echo "2. Update CORS_ALLOWED_ORIGINS in ConfigMap with your domains"
+echo ""
+echo "3. Configure SSL/TLS certificates (Let's Encrypt via cert-manager)"

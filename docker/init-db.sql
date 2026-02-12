@@ -12,13 +12,16 @@ CREATE DATABASE ledger_db;
 CREATE DATABASE notification_db;
 CREATE DATABASE fraud_db;
 CREATE DATABASE audit_db;
+CREATE DATABASE admin_db;
 
--- Grant privileges
-GRANT ALL PRIVILEGES ON DATABASE auth_db TO rrbank;
-GRANT ALL PRIVILEGES ON DATABASE customer_db TO rrbank;
-GRANT ALL PRIVILEGES ON DATABASE account_db TO rrbank;
-GRANT ALL PRIVILEGES ON DATABASE transaction_db TO rrbank;
-GRANT ALL PRIVILEGES ON DATABASE ledger_db TO rrbank;
-GRANT ALL PRIVILEGES ON DATABASE notification_db TO rrbank;
-GRANT ALL PRIVILEGES ON DATABASE fraud_db TO rrbank;
-GRANT ALL PRIVILEGES ON DATABASE audit_db TO rrbank;
+-- Grant privileges to postgres user (already has superuser privileges)
+-- These are included for completeness
+GRANT ALL PRIVILEGES ON DATABASE auth_db TO postgres;
+GRANT ALL PRIVILEGES ON DATABASE customer_db TO postgres;
+GRANT ALL PRIVILEGES ON DATABASE account_db TO postgres;
+GRANT ALL PRIVILEGES ON DATABASE transaction_db TO postgres;
+GRANT ALL PRIVILEGES ON DATABASE ledger_db TO postgres;
+GRANT ALL PRIVILEGES ON DATABASE notification_db TO postgres;
+GRANT ALL PRIVILEGES ON DATABASE fraud_db TO postgres;
+GRANT ALL PRIVILEGES ON DATABASE audit_db TO postgres;
+GRANT ALL PRIVILEGES ON DATABASE admin_db TO postgres;

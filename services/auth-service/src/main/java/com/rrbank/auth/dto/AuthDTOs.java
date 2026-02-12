@@ -24,6 +24,7 @@ public class AuthDTOs {
 
         private String firstName;
         private String lastName;
+        private String phoneNumber;
     }
 
     @Data

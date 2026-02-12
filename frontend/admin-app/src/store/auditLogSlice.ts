@@ -3,54 +3,53 @@ import { AuditLog } from '../types';
 
 interface AuditLogState {
   logs: AuditLog[];
+  selectedLog: AuditLog | null;
   loading: boolean;
   error: string | null;
   totalCount: number;
-  currentPage: number;
-  pageSize: number;
 }
 
 const initialState: AuditLogState = {
   logs: [],
+  selectedLog: null,
   loading: false,
   error: null,
   totalCount: 0,
-  currentPage: 1,
-  pageSize: 20,
 };
 
 const auditLogSlice = createSlice({
   name: 'auditLogs',
   initialState,
   reducers: {
+    setLogs: (state, action: PayloadAction<{ logs: AuditLog[]; total: number }>) => {
+      state.logs = action.payload.logs;
+      state.totalCount = action.payload.total;
+      state.loading = false;
+      state.error = null;
+    },
+    setSelectedLog: (state, action: PayloadAction<AuditLog | null>) => {
+      state.selectedLog = action.payload;
+    },
+    addLog: (state, action: PayloadAction<AuditLog>) => {
+      state.logs.unshift(action.payload);
+      state.totalCount += 1;
+    },
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.loading = action.payload;
     },
-    setLogs: (state, action: PayloadAction<{ logs: AuditLog[]; totalCount: number }>) => {
-      state.logs = action.payload.logs;
-      state.totalCount = action.payload.totalCount;
-      state.loading = false;
-      state.error = null;
-    },
-    setError: (state, action: PayloadAction<string>) => {
+    setError: (state, action: PayloadAction<string | null>) => {
       state.error = action.payload;
       state.loading = false;
     },
-    setPage: (state, action: PayloadAction<number>) => {
-      state.currentPage = action.payload;
-    },
-    clearError: (state) => {
+    clearLogs: (state) => {
+      state.logs = [];
+      state.selectedLog = null;
+      state.loading = false;
       state.error = null;
+      state.totalCount = 0;
     },
   },
 });
 
-export const {
-  setLoading,
-  setLogs,
-  setError,
-  setPage,
-  clearError,
-} = auditLogSlice.actions;
-
+export const { setLogs, setSelectedLog, addLog, setLoading, setError, clearLogs } = auditLogSlice.actions;
 export default auditLogSlice.reducer;

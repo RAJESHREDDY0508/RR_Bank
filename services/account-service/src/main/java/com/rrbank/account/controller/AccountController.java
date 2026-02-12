@@ -1,10 +1,16 @@
 package com.rrbank.account.controller;
 
 import com.rrbank.account.dto.AccountDTOs.*;
+import com.rrbank.account.entity.Account;
+import com.rrbank.account.repository.AccountRepository;
 import com.rrbank.account.service.AccountService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,6 +25,7 @@ import java.util.UUID;
 public class AccountController {
 
     private final AccountService accountService;
+    private final AccountRepository accountRepository;
 
     @PostMapping
     public ResponseEntity<AccountResponse> createAccount(
@@ -32,6 +39,38 @@ public class AccountController {
         
         AccountResponse response = accountService.createAccount(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping
+    public ResponseEntity<Page<AccountResponse>> getAllAccounts(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String accountType,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir
+    ) {
+        log.info("GET all accounts - page: {}, size: {}, status: {}, type: {}", page, size, status, accountType);
+        
+        Sort sort = sortDir.equalsIgnoreCase("asc") 
+                ? Sort.by(sortBy).ascending() 
+                : Sort.by(sortBy).descending();
+        Pageable pageable = PageRequest.of(page, size, sort);
+        
+        Page<Account> accounts;
+        if (status != null && !status.isEmpty()) {
+            accounts = accountRepository.findByStatus(status, pageable);
+        } else if (accountType != null && !accountType.isEmpty()) {
+            accounts = accountRepository.findByAccountType(accountType, pageable);
+        } else if (search != null && !search.isEmpty()) {
+            accounts = accountRepository.searchAccounts(search, pageable);
+        } else {
+            accounts = accountRepository.findAll(pageable);
+        }
+        
+        Page<AccountResponse> response = accounts.map(this::toAccountResponse);
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{accountId}")
@@ -76,5 +115,19 @@ public class AccountController {
     @GetMapping("/health")
     public ResponseEntity<String> health() {
         return ResponseEntity.ok("Account Service is healthy");
+    }
+
+    private AccountResponse toAccountResponse(Account account) {
+        return AccountResponse.builder()
+                .id(account.getId().toString())
+                .accountNumber(account.getAccountNumber())
+                .accountType(account.getAccountType().name())
+                .status(account.getStatus().name())
+                .currency(account.getCurrency())
+                .userId(account.getUserId() != null ? account.getUserId().toString() : null)
+                .customerId(account.getCustomerId() != null ? account.getCustomerId().toString() : null)
+                .createdAt(account.getCreatedAt())
+                .updatedAt(account.getUpdatedAt())
+                .build();
     }
 }

@@ -1,196 +1,262 @@
-// User Types
-export interface User {
+// Re-export RBAC types
+export * from './rbac';
+
+// Common types
+export interface PageResponse<T> {
+  content: T[];
+  page?: number; // Optional for backward compatibility
+  number: number; // Spring Data Page uses 'number' for page number
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  first: boolean;
+  last: boolean;
+  empty: boolean; // Spring Data Page includes 'empty' field
+  hasNext?: boolean;
+  hasPrevious?: boolean;
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  message?: string;
+  data: T;
+  timestamp: string;
+}
+
+export interface ErrorResponse {
+  timestamp: string;
+  status: number;
+  error: string;
+  code?: string;
+  errorCode?: string;
+  message: string;
+  path: string;
+  requestId?: string;
+  details?: FieldError[];
+}
+
+export interface FieldError {
+  field: string;
+  message: string;
+  rejectedValue?: unknown;
+}
+
+// Chart types
+export interface ChartData {
+  labels: string[];
+  datasets: ChartDataset[];
+}
+
+export interface ChartDataset {
+  label: string;
+  data: number[];
+  borderColor?: string;
+  backgroundColor?: string;
+  fill?: boolean;
+}
+
+// Status types
+export type CustomerStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'LOCKED';
+export type AccountStatus = 'ACTIVE' | 'FROZEN' | 'CLOSED' | 'PENDING';
+export type TransactionStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+export type FraudAlertStatus = 'PENDING' | 'CONFIRMED_FRAUD' | 'FALSE_POSITIVE' | 'NEEDS_REVIEW';
+export type KycStatus = 'PENDING' | 'VERIFIED' | 'REJECTED' | 'EXPIRED' | 'IN_PROGRESS';
+
+// Utility types
+export type SortDirection = 'asc' | 'desc';
+
+export interface PaginationParams {
+  page: number;
+  size: number;
+  sortBy?: string;
+  sortDir?: SortDirection;
+}
+
+export interface DateRange {
+  startDate: string;
+  endDate: string;
+}
+
+// Customer type
+export interface Customer {
+  id: string;
   userId: string;
   username: string;
   email: string;
-  role: string;
-  firstName?: string;
-  lastName?: string;
-  createdAt?: string;
-  lastLogin?: string;
-  status?: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
-}
-
-// Customer Types
-export interface Customer {
-  id?: string;
-  userId: string;
-  username?: string;
-  email: string;
-  firstName?: string;
-  lastName?: string;
+  firstName: string;
+  lastName: string;
+  fullName?: string;
   phoneNumber?: string;
   phone?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  zipCode?: string;
-  country?: string;
+  status: CustomerStatus;
+  kycStatus: KycStatus;
+  customerSegment?: string;
   dateOfBirth?: string;
-  kycStatus: 'PENDING' | 'IN_PROGRESS' | 'VERIFIED' | 'REJECTED' | 'EXPIRED';
-  customerSegment?: 'REGULAR' | 'PREMIUM' | 'VIP' | 'CORPORATE';
-  accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'CLOSED';
-  createdAt: string;
-  totalAccounts?: number;
+  address?: {
+    line1: string;
+    line2?: string;
+    city: string;
+    state: string;
+    postalCode: string;
+    country: string;
+  };
+  accountCount?: number;
   totalBalance?: number;
-}
-
-// Account Types
-export interface Account {
-  id?: string;
-  accountNumber: string;
-  customerId?: string;
-  userId?: string;
-  accountType: 'SAVINGS' | 'CHECKING' | 'CREDIT' | 'BUSINESS';
-  balance: number;
-  availableBalance?: number;
-  currency: string;
-  status: 'PENDING' | 'ACTIVE' | 'FROZEN' | 'CLOSED' | 'SUSPENDED';
   createdAt: string;
-  openedAt?: string;
-  lastTransactionDate?: string;
+  lastLogin?: string;
 }
 
-// Transaction Types
-export interface Transaction {
-  id?: string;
-  transactionId?: string;
-  transactionReference?: string;
-  accountNumber?: string;
-  fromAccountId?: string;
-  toAccountId?: string;
-  transactionType: 'DEPOSIT' | 'WITHDRAWAL' | 'TRANSFER' | 'PAYMENT' | 'FEE' | 'INTEREST' | 'REFUND' | 'ADJUSTMENT';
-  amount: number;
-  currency: string;
-  description?: string;
-  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'REVERSED';
-  timestamp?: string;
-  createdAt?: string;
-  completedAt?: string;
-  fromAccount?: string;
-  toAccount?: string;
-  metadata?: Record<string, any>;
-}
-
-// Fraud Alert Types
-export interface FraudAlert {
-  id?: string;
-  alertId?: string;
-  transactionId?: string;
-  accountId?: string;
-  accountNumber?: string;
-  customerId?: string;
-  alertType?: 'SUSPICIOUS_ACTIVITY' | 'LARGE_TRANSACTION' | 'UNUSUAL_PATTERN' | 'MULTIPLE_FAILED_ATTEMPTS';
-  eventType?: string;
-  riskScore?: number;
-  riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  severity?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-  status?: 'NEW' | 'INVESTIGATING' | 'RESOLVED' | 'FALSE_POSITIVE';
-  resolved?: boolean;
-  description?: string;
-  flaggedReason?: string;
-  detectedAt?: string;
-  createdAt?: string;
-  resolvedAt?: string;
-  resolvedBy?: string;
-  notes?: string;
-  resolutionNotes?: string;
-}
-
-// Payment Types
-export interface Payment {
-  paymentId: string;
-  accountNumber: string;
-  paymentType: 'BILL' | 'LOAN' | 'CREDIT_CARD' | 'MERCHANT';
-  amount: number;
-  status: 'PENDING' | 'COMPLETED' | 'FAILED';
-  scheduledDate: string;
-  processedDate?: string;
-  recipient: string;
-  description: string;
-}
-
-// Audit Log Types
-export interface AuditLog {
-  id?: string;
-  logId?: string;
-  userId: string;
-  username?: string;
-  action: string;
-  resource?: string;
-  entityType?: string;
-  resourceId?: string;
-  entityId?: string;
-  details?: string;
-  oldValue?: any;
-  newValue?: any;
-  ipAddress?: string;
-  timestamp?: string;
-  createdAt?: string;
-  status: 'SUCCESS' | 'FAILURE';
-}
-
-// Dashboard Metrics Types
-export interface DashboardMetrics {
-  totalCustomers: number;
-  activeCustomers?: number;
-  totalAccounts: number;
-  activeAccounts?: number;
-  totalTransactions?: number;
-  totalBalance: number;
-  todayTransactions: number;
-  todayTransactionVolume?: number;
-  pendingFraudAlerts?: number;
-  pendingAccountRequests?: number;
-  systemHealth?: 'HEALTHY' | 'WARNING' | 'CRITICAL';
-}
-
-// Report Types
-export interface Report {
-  id?: string;
-  reportId?: string;
-  reportType: 'TRANSACTIONS' | 'CUSTOMERS' | 'FRAUD' | 'FINANCIAL';
-  generatedBy?: string;
-  generatedAt?: string;
-  createdAt?: string;
-  parameters?: Record<string, any>;
-  format: 'PDF' | 'EXCEL' | 'CSV';
-  status: 'GENERATING' | 'COMPLETED' | 'FAILED';
-  downloadUrl?: string;
-}
-
-// Account Request Types
-export interface AccountRequest {
+// Account type
+export interface Account {
   id: string;
+  accountNumber: string;
+  accountType: string;
+  status: AccountStatus;
+  currency: string;
+  balance: number;
+  availableBalance: number;
   userId: string;
   customerName?: string;
   customerEmail?: string;
+  createdAt: string;
+  updatedAt?: string;
+  frozenAt?: string;
+  frozenReason?: string;
+}
+
+// Account Request type
+export interface AccountRequest {
+  id: string;
+  userId: string;
+  customerName: string;
+  customerEmail?: string;
   accountType: string;
-  initialDeposit: number;
   currency: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
-  requestNotes?: string;
-  adminNotes?: string;
+  initialDeposit?: number;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  reason?: string;
   reviewedBy?: string;
   reviewedAt?: string;
-  accountId?: string;
   createdAt: string;
 }
 
-// API Response Types
-export interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  message?: string;
-  error?: string;
+// Transaction type
+export interface Transaction {
+  id: string;
+  transactionReference: string;
+  transactionType: string;
+  status: TransactionStatus;
+  amount: number;
+  currency: string;
+  fromAccountId?: string;
+  fromAccountNumber?: string;
+  toAccountId?: string;
+  toAccountNumber?: string;
+  description?: string;
+  failureReason?: string;
+  initiatedBy?: string;
+  initiatedByName?: string;
+  createdAt: string;
+  completedAt?: string;
 }
 
-export interface PaginatedResponse<T> {
-  content: T[];
-  totalElements: number;
-  totalPages: number;
-  number?: number;
-  currentPage?: number;
-  size?: number;
-  pageSize?: number;
+// FraudAlert type
+export interface FraudAlert {
+  id: string;
+  accountId: string;
+  accountNumber: string;
+  userId: string;
+  customerName: string;
+  transactionId?: string;
+  transactionRef?: string;
+  eventType: string;
+  decision: string;
+  reason: string;
+  riskScore: number;
+  status: FraudAlertStatus;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  resolutionNotes?: string;
+  createdAt: string;
+}
+
+// AuditLog type
+export interface AuditLog {
+  id: string;
+  adminUserId?: string;
+  adminUsername: string;
+  action: string;
+  actionType?: string;
+  entityType?: string;
+  entityId?: string;
+  description?: string;
+  oldValue?: string;
+  newValue?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  status: string;
+  errorMessage?: string;
+  createdAt: string;
+}
+
+// Statement type
+export interface Statement {
+  id: string;
+  accountId: string;
+  accountNumber: string;
+  userId: string;
+  customerName?: string;
+  statementType: 'MONTHLY' | 'QUARTERLY' | 'ANNUAL' | 'CUSTOM';
+  startDate: string;
+  endDate: string;
+  generatedAt: string;
+  generatedBy?: string;
+  status: 'PENDING' | 'GENERATED' | 'FAILED';
+  downloadUrl?: string;
+}
+
+// Payment type
+export interface Payment {
+  id: string;
+  paymentReference: string;
+  paymentType: string;
+  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  amount: number;
+  currency: string;
+  fromAccountId?: string;
+  fromAccountNumber?: string;
+  beneficiaryName?: string;
+  beneficiaryAccount?: string;
+  beneficiaryBank?: string;
+  description?: string;
+  scheduledDate?: string;
+  processedAt?: string;
+  failureReason?: string;
+  createdAt: string;
+}
+
+// Report type
+export interface Report {
+  id: string;
+  name: string;
+  type: string;
+  description?: string;
+  generatedAt: string;
+  generatedBy: string;
+  status: string;
+  downloadUrl?: string;
+  parameters?: Record<string, unknown>;
+}
+
+// Settings type
+export interface SystemSettings {
+  id: string;
+  category: string;
+  key: string;
+  value: string;
+  description?: string;
+  dataType: 'STRING' | 'NUMBER' | 'BOOLEAN' | 'JSON';
+  isEditable: boolean;
+  lastModifiedBy?: string;
+  lastModifiedAt?: string;
 }

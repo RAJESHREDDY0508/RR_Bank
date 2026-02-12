@@ -28,6 +28,7 @@ public class AuthService {
     private final JwtTokenProvider jwtTokenProvider;
     private final UserEventProducer userEventProducer;
     private final NotificationServiceClient notificationClient;
+    private final CustomerServiceClient customerServiceClient;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -53,15 +54,37 @@ public class AuthService {
         user = userRepository.save(user);
         log.info("User registered successfully: {}", user.getId());
 
-        // Publish user created event
-        userEventProducer.publishUserCreated(user);
+        // Create customer record in customer-service
+        try {
+            customerServiceClient.createCustomer(
+                user.getId(),
+                user.getEmail(),
+                user.getFirstName(),
+                user.getLastName(),
+                request.getPhoneNumber()
+            );
+            log.info("Customer record created for user: {}", user.getId());
+        } catch (Exception e) {
+            log.error("Failed to create customer record (non-fatal): {}", e.getMessage());
+        }
+
+        // Publish user created event (for other services via Kafka if enabled)
+        try {
+            userEventProducer.publishUserCreated(user);
+        } catch (Exception e) {
+            log.warn("Failed to publish user created event (non-fatal): {}", e.getMessage());
+        }
 
         // Send welcome email
-        notificationClient.sendWelcomeEmail(
-            user.getId().toString(),
-            user.getEmail(),
-            user.getFirstName()
-        );
+        try {
+            notificationClient.sendWelcomeEmail(
+                user.getId().toString(),
+                user.getEmail(),
+                user.getFirstName()
+            );
+        } catch (Exception e) {
+            log.warn("Failed to send welcome email (non-fatal): {}", e.getMessage());
+        }
 
         return generateAuthResponse(user);
     }
@@ -90,15 +113,19 @@ public class AuthService {
             
             // Send security alert for failed login attempt after multiple failures
             if (user.getFailedLoginAttempts() >= 3) {
-                notificationClient.sendSecurityAlert(
-                    user.getId().toString(),
-                    user.getEmail(),
-                    user.getFirstName(),
-                    "Multiple Failed Login Attempts",
-                    userAgent,
-                    ipAddress,
-                    null
-                );
+                try {
+                    notificationClient.sendSecurityAlert(
+                        user.getId().toString(),
+                        user.getEmail(),
+                        user.getFirstName(),
+                        "Multiple Failed Login Attempts",
+                        userAgent,
+                        ipAddress,
+                        null
+                    );
+                } catch (Exception e) {
+                    log.warn("Failed to send security alert: {}", e.getMessage());
+                }
             }
             
             throw new RuntimeException("Invalid credentials");
@@ -108,16 +135,36 @@ public class AuthService {
         user.setLastLogin(LocalDateTime.now());
         userRepository.save(user);
 
+        // Ensure customer record exists (in case it was missed during registration)
+        try {
+            if (!customerServiceClient.customerExists(user.getId())) {
+                customerServiceClient.createCustomer(
+                    user.getId(),
+                    user.getEmail(),
+                    user.getFirstName(),
+                    user.getLastName(),
+                    null
+                );
+                log.info("Created missing customer record for user: {}", user.getId());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to verify/create customer record (non-fatal): {}", e.getMessage());
+        }
+
         // Send security alert for new login
-        notificationClient.sendSecurityAlert(
-            user.getId().toString(),
-            user.getEmail(),
-            user.getFirstName(),
-            "New Login",
-            userAgent,
-            ipAddress,
-            null
-        );
+        try {
+            notificationClient.sendSecurityAlert(
+                user.getId().toString(),
+                user.getEmail(),
+                user.getFirstName(),
+                "New Login",
+                userAgent,
+                ipAddress,
+                null
+            );
+        } catch (Exception e) {
+            log.warn("Failed to send login notification: {}", e.getMessage());
+        }
 
         log.info("User logged in successfully: {}", user.getId());
         return generateAuthResponse(user);
@@ -179,11 +226,15 @@ public class AuthService {
         // TODO: Store reset token in database with expiry
         
         // Send password reset email
-        notificationClient.sendPasswordResetEmail(
-            user.getEmail(),
-            user.getFirstName(),
-            resetToken
-        );
+        try {
+            notificationClient.sendPasswordResetEmail(
+                user.getEmail(),
+                user.getFirstName(),
+                resetToken
+            );
+        } catch (Exception e) {
+            log.warn("Failed to send password reset email: {}", e.getMessage());
+        }
     }
 
     private AuthResponse generateAuthResponse(User user) {
